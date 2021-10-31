@@ -2,5 +2,7 @@
 /.bsp/
 /.metals/
 /.vscode/
-/project/
 /target/
+/cache/**
+!/cache/.gitkeep
+/lib/
