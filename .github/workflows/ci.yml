@@ -12,6 +12,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '11'
+      - name: Coursier cache
+        uses: coursier/cache-action@v6
       - name: Build
         run: |
           ./deps
