@@ -16,7 +16,7 @@ jobs:
         uses: coursier/cache-action@v6
       - name: Build
         run: |
-          ./deps
+          ./deps.sh
           sbt assembly
       - uses: actions/upload-artifact@v2
         with:
