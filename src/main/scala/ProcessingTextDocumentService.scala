@@ -21,6 +21,16 @@ import java.io.File
 import processing.mode.java.AutoFormat
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
+import java.util.Collections
+import processing.mode.java.CompletionGenerator
+import processing.mode.java.JavaTextArea
+import java.util.Arrays
+import processing.mode.java.CompletionCandidate
+import javax.swing.DefaultListModel
+import org.eclipse.lsp4j.CompletionItemKind
+import org.eclipse.lsp4j.MarkupContent
+import org.eclipse.lsp4j.MarkupKind
+import org.jsoup.Jsoup
 
 class ProcessingTextDocumentService(val server: ProcessingLanguageServer)
     extends TextDocumentService
@@ -30,14 +40,14 @@ class ProcessingTextDocumentService(val server: ProcessingLanguageServer)
   ): Unit = {
     logger.info("didChange")
     val change = params.getContentChanges.get(0)
-    server.state.sketch.getCode
+    server.adapter.sketch.getCode
       .find(
-        _.getFile == server.state.uriToPath(params.getTextDocument.getUri)
+        _.getFile == server.adapter.uriToPath(params.getTextDocument.getUri)
       )
       .get
       .setProgram(change.getText)
-    server.state.preprocService.notifySketchChanged()
-    server.state.errorChecker.notifySketchChanged()
+    server.adapter.preprocService.notifySketchChanged()
+    server.adapter.errorChecker.notifySketchChanged()
   }
   override def didClose(
       params: DidCloseTextDocumentParams
@@ -56,24 +66,123 @@ class ProcessingTextDocumentService(val server: ProcessingLanguageServer)
   }
 
   override def completion(
-      position: CompletionParams
+      params: CompletionParams
   ): CompletableFuture[LspEither[JList[CompletionItem], CompletionList]] = {
+    logger.debug("completion")
+    val p =
+      CompletableFuture[LspEither[JList[CompletionItem], CompletionList]]()
+    server.adapter.preprocService.notifySketchChanged()
+    server.adapter.preprocService.whenDone(ps => {
+      try {
+        val path = server.adapter.uriToPath(params.getTextDocument.getUri)
+        val codeIndex =
+          server.adapter.sketch.getCode
+            .indexWhere(_.getFile == path)
+        val code = server.adapter.sketch.getCode(codeIndex)
+        val lineStartOffset = code.getProgram
+          .split("\n")
+          .take(params.getPosition.getLine + 1)
+          .mkString("\n")
+          .length
+        val lineNumber = ps.tabOffsetToJavaLine(codeIndex, lineStartOffset);
 
-    CompletableFutures.computeAsync(checker => {
-      LspEither.forLeft(JList.of())
-    });
+        val text = code.getProgram
+          .split("\n")(params.getPosition.getLine)
+          .substring(0, params.getPosition.getCharacter)
+        val phrase = {
+          val method = classOf[JavaTextArea]
+            .getDeclaredMethod("parsePhrase", classOf[String])
+
+          method.setAccessible(true)
+          method
+        }
+          .invoke(null, text)
+          .asInstanceOf[String]
+        logger.debug(s"phrase: $phrase")
+        if (phrase != null) {
+          logger.debug(s"lineNumber: $lineNumber")
+          val candidates = server.adapter.suggestionGenerator
+            .preparePredictions(ps, phrase, lineNumber);
+          logger.debug("candidates:" + candidates)
+          if (candidates != null && !candidates.isEmpty()) {
+            Collections.sort(candidates);
+            val defListModel = {
+              val method = classOf[CompletionGenerator]
+                .getDeclaredMethod(
+                  "filterPredictions",
+                  classOf[JList[CompletionCandidate]]
+                )
+              method.setAccessible(true)
+              method
+                .invoke(null, candidates)
+                .asInstanceOf[DefaultListModel[CompletionCandidate]]
+            }
+
+            val filtered = Collections.list(defListModel.elements)
+            logger.debug("filtered:" + filtered)
+            p.complete(
+              LspEither.forLeft(
+                filtered.asScala
+                  .map(c => {
+                    val item = new CompletionItem()
+                    item.setLabel(c.getElementName)
+                    item.setInsertText(c.getCompletionString)
+                    item.setKind(c.getType match {
+                      case 0 => // PREDEF_CLASS
+                        CompletionItemKind.Class
+                      case 1 => // PREDEF_FIELD
+                        CompletionItemKind.Constant
+                      case 2 => // PREDEF_METHOD
+                        CompletionItemKind.Function
+                      case 3 => // LOCAL_CLASS
+                        CompletionItemKind.Class
+                      case 4 => // LOCAL_METHOD
+                        CompletionItemKind.Method
+                      case 5 => // LOCAL_FIELD
+                        CompletionItemKind.Field
+                      case 6 => // LOCAL_VARIABLE
+                        CompletionItemKind.Variable
+                    })
+                    item.setDetail(Jsoup.parse(c.getLabel).text())
+                    item
+                  })
+                  .asJava
+              )
+            )
+
+          } else {
+            LspEither.forLeft(JList.of())
+          }
+        } else {
+          LspEither.forLeft(JList.of())
+        }
+      } catch {
+        case e: Exception => {
+          logger.error(e.toString)
+          LspEither.forLeft(JList.of())
+        }
+      }
+    })
+    p
+  }
+
+  override def resolveCompletionItem(
+      params: CompletionItem
+  ): CompletableFuture[CompletionItem] = {
+    CompletableFutures.computeAsync(_ => {
+      params
+    })
   }
 
   override def formatting(
       params: DocumentFormattingParams
   ): CompletableFuture[JList[? <: TextEdit]] = {
-    val path = server.state.uriToPath(params.getTextDocument.getUri)
+    val path = server.adapter.uriToPath(params.getTextDocument.getUri)
     CompletableFutures.computeAsync(checker => {
       val code =
-        server.state.sketch.getCode.find(_.getFile == path).get.getProgram
+        server.adapter.sketch.getCode.find(_.getFile == path).get.getProgram
 
       val newCode = AutoFormat().format(code)
-      println((code, newCode))
       val end = toLineCol(code, code.length)
       JList.of(
         TextEdit(

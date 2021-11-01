@@ -19,25 +19,25 @@ class ProcessingWorkspaceService(val server: ProcessingLanguageServer)
     for (change <- params.getChanges.asScala) {
       change.getType match {
         case FileChangeType.Created =>
-          server.state.sketch.addFile(server.state.uriToPath(change.getUri))
-          server.state.preprocService.notifySketchChanged()
+          server.adapter.sketch.addFile(server.adapter.uriToPath(change.getUri))
+          server.adapter.preprocService.notifySketchChanged()
         case FileChangeType.Changed =>
-          server.state.sketch.getCode
+          server.adapter.sketch.getCode
             .find(
-              _.getFile == server.state.uriToPath(change.getUri)
+              _.getFile == server.adapter.uriToPath(change.getUri)
             )
             .get
             .load()
-          server.state.preprocService.notifySketchChanged()
+          server.adapter.preprocService.notifySketchChanged()
         case FileChangeType.Deleted =>
-          server.state.sketch.removeCode(
-            server.state.sketch.getCode
+          server.adapter.sketch.removeCode(
+            server.adapter.sketch.getCode
               .find(
-                _.getFile == server.state.uriToPath(change.getUri)
+                _.getFile == server.adapter.uriToPath(change.getUri)
               )
               .get
           )
-          server.state.preprocService.notifySketchChanged()
+          server.adapter.preprocService.notifySketchChanged()
       }
     }
   }

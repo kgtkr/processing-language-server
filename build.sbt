@@ -14,7 +14,8 @@ lazy val root = project
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.4",
       "org.slf4j" % "jul-to-slf4j" % "1.7.32",
-      "com.novocode" % "junit-interface" % "0.11" % "test"
+      "com.novocode" % "junit-interface" % "0.11" % "test",
+      "org.jsoup" % "jsoup" % "1.14.3"
     ),
     assembly / mainClass := Some("net.kgtkr.processingLanguageServer.main"),
     assembly / assemblyExcludedJars := {

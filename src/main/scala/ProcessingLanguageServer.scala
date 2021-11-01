@@ -42,7 +42,7 @@ def toLineCol(s: String, offset: Int): (Int, Int) = {
   (line, col)
 }
 
-class ProcessingLanguageServerState(
+class ProcessingAdapter(
     rootPath: String,
     problemsCallback: (JList[Problem]) => Unit
 ) {
@@ -65,6 +65,8 @@ class ProcessingLanguageServerState(
     },
     preprocService
   )
+  val suggestionGenerator =
+    CompletionGenerator(javaMode)
 
   def uriToPath(uri: String): File = {
     val uriPrefix = "file://"
@@ -81,7 +83,7 @@ class ProcessingLanguageServer
     extends LanguageServer
     with LazyLogging
     with LanguageClientAware {
-  var state: ProcessingLanguageServerState = null;
+  var adapter: ProcessingAdapter = null;
   var client: LanguageClient = null;
   override def exit(): Unit = {
     logger.info("exit")
@@ -99,14 +101,14 @@ class ProcessingLanguageServer
     Base.setCommandLine();
     Platform.init();
     Preferences.init();
-    state = ProcessingLanguageServerState(
+    adapter = ProcessingAdapter(
       params.getRootPath,
       probs => {
         val dias = probs.asScala
           .map(prob => {
-            val code = state.sketch.getCode(prob.getTabIndex)
+            val code = adapter.sketch.getCode(prob.getTabIndex)
             (
-              state.pathToUri(code.getFile),
+              adapter.pathToUri(code.getFile),
               Diagnostic(
                 Range(
                   Position(
@@ -128,7 +130,6 @@ class ProcessingLanguageServer
           val params = PublishDiagnosticsParams()
           params.setUri(uri)
           params.setDiagnostics(dias.map(_._2).toList.asJava)
-          println(params)
           client.publishDiagnostics(
             params
           );
@@ -142,6 +143,11 @@ class ProcessingLanguageServer
 
     val completionOptions = new CompletionOptions();
     completionOptions.setResolveProvider(true);
+    completionOptions.setTriggerCharacters(
+      List(
+        "."
+      ).asJava
+    );
     capabilities.setCompletionProvider(completionOptions);
 
     capabilities.setDocumentFormattingProvider(true);
