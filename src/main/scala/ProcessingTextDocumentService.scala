@@ -49,8 +49,7 @@ class ProcessingTextDocumentService
       )
       .get
       .setProgram(change.getText)
-    adapter.preprocService.notifySketchChanged()
-    adapter.errorChecker.notifySketchChanged()
+    adapter.notifySketchChanged();
   }
   override def didClose(
       params: DidCloseTextDocumentParams
@@ -74,7 +73,7 @@ class ProcessingTextDocumentService
     logger.debug("completion")
     val p =
       CompletableFuture[LspEither[JList[CompletionItem], CompletionList]]()
-    adapter.preprocService.notifySketchChanged()
+    adapter.notifySketchChanged();
     adapter.preprocService.whenDone(ps => {
       try {
         val path = adapter.uriToPath(params.getTextDocument.getUri)

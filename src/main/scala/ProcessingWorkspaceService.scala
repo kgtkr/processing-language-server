@@ -20,7 +20,7 @@ class ProcessingWorkspaceService extends WorkspaceService with LazyLogging {
       change.getType match {
         case FileChangeType.Created =>
           adapter.sketch.addFile(adapter.uriToPath(change.getUri))
-          adapter.preprocService.notifySketchChanged()
+          adapter.notifySketchChanged();
         case FileChangeType.Changed =>
           adapter.sketch.getCode
             .find(
@@ -28,7 +28,7 @@ class ProcessingWorkspaceService extends WorkspaceService with LazyLogging {
             )
             .get
             .load()
-          adapter.preprocService.notifySketchChanged()
+          adapter.notifySketchChanged();
         case FileChangeType.Deleted =>
           adapter.sketch.removeCode(
             adapter.sketch.getCode
@@ -37,7 +37,7 @@ class ProcessingWorkspaceService extends WorkspaceService with LazyLogging {
               )
               .get
           )
-          adapter.preprocService.notifySketchChanged()
+          adapter.notifySketchChanged();
       }
     }
   }

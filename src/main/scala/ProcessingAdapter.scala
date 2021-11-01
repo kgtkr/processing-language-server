@@ -64,6 +64,12 @@ class ProcessingAdapter(
   )
   val suggestionGenerator =
     CompletionGenerator(javaMode)
+  notifySketchChanged();
+
+  def notifySketchChanged() = {
+    preprocService.notifySketchChanged()
+    errorChecker.notifySketchChanged()
+  }
 
   def uriToPath(uri: String): File = {
     val uriPrefix = "file://"
