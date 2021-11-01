@@ -39,8 +39,12 @@ import org.eclipse.lsp4j.DiagnosticSeverity
 
 class ProcessingAdapter(
     rootPath: String,
-    problemsCallback: (JList[Problem]) => Unit
+    client: LanguageClient
 ) {
+  Base.setCommandLine();
+  Platform.init();
+  Preferences.init();
+
   val javaMode = ModeContribution
     .load(
       null,
@@ -55,9 +59,7 @@ class ProcessingAdapter(
   val completionGenerator = CompletionGenerator(javaMode);
   val preprocService = PreprocService2(javaMode, sketch);
   val errorChecker = ErrorChecker2(
-    probs => {
-      problemsCallback(probs)
-    },
+    updateProblems,
     preprocService
   )
   val suggestionGenerator =
@@ -71,5 +73,56 @@ class ProcessingAdapter(
   def pathToUri(path: File): String = {
     val uriPrefix = "file://"
     uriPrefix + path.toString
+  }
+
+  var prevDiagnosticReportUris = Set[String]()
+
+  def updateProblems(probs: JList[Problem]): Unit = {
+    val dias = probs.asScala
+      .map(prob => {
+        val code = sketch.getCode(prob.getTabIndex)
+        val dia = Diagnostic(
+          Range(
+            Position(
+              prob.getLineNumber,
+              toLineCol(code.getProgram, prob.getStartOffset)._2 - 1
+            ),
+            Position(
+              prob.getLineNumber,
+              toLineCol(code.getProgram, prob.getStopOffset)._2 - 1
+            )
+          ),
+          prob.getMessage
+        );
+        dia.setSeverity(if (prob.isError) {
+          DiagnosticSeverity.Error
+        } else {
+          DiagnosticSeverity.Warning
+        });
+        (
+          pathToUri(code.getFile),
+          dia
+        )
+      })
+      .groupBy(_._1)
+
+    for ((uri, dias) <- dias) {
+      val params = PublishDiagnosticsParams()
+      params.setUri(uri)
+      params.setDiagnostics(dias.map(_._2).toList.asJava)
+      client.publishDiagnostics(
+        params
+      );
+    }
+
+    for (uri <- prevDiagnosticReportUris.diff(dias.keySet)) {
+      val params = PublishDiagnosticsParams()
+      params.setUri(uri)
+      params.setDiagnostics(JList.of())
+      client.publishDiagnostics(
+        params
+      );
+    }
+    prevDiagnosticReportUris = dias.keySet
   }
 }

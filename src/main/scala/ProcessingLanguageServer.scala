@@ -49,7 +49,6 @@ class ProcessingLanguageServer
     with LanguageClientAware {
   var adapter: ProcessingAdapter = null;
   var client: LanguageClient = null;
-  var prevDiagnosticReportUris = Set[String]()
   val textDocumentService = ProcessingTextDocumentService()
   val workspaceService = ProcessingWorkspaceService()
   override def exit(): Unit = {
@@ -61,59 +60,9 @@ class ProcessingLanguageServer
   override def initialize(
       params: InitializeParams
   ): CompletableFuture[InitializeResult] = {
-    Base.setCommandLine();
-    Platform.init();
-    Preferences.init();
     this.adapter = ProcessingAdapter(
       params.getRootPath,
-      probs => {
-        val dias = probs.asScala
-          .map(prob => {
-            val code = adapter.sketch.getCode(prob.getTabIndex)
-            val dia = Diagnostic(
-              Range(
-                Position(
-                  prob.getLineNumber,
-                  toLineCol(code.getProgram, prob.getStartOffset)._2 - 1
-                ),
-                Position(
-                  prob.getLineNumber,
-                  toLineCol(code.getProgram, prob.getStopOffset)._2 - 1
-                )
-              ),
-              prob.getMessage
-            );
-            dia.setSeverity(if (prob.isError) {
-              DiagnosticSeverity.Error
-            } else {
-              DiagnosticSeverity.Warning
-            });
-            (
-              adapter.pathToUri(code.getFile),
-              dia
-            )
-          })
-          .groupBy(_._1)
-
-        for ((uri, dias) <- dias) {
-          val params = PublishDiagnosticsParams()
-          params.setUri(uri)
-          params.setDiagnostics(dias.map(_._2).toList.asJava)
-          client.publishDiagnostics(
-            params
-          );
-        }
-
-        for (uri <- prevDiagnosticReportUris.diff(dias.keySet)) {
-          val params = PublishDiagnosticsParams()
-          params.setUri(uri)
-          params.setDiagnostics(JList.of())
-          client.publishDiagnostics(
-            params
-          );
-        }
-        prevDiagnosticReportUris = dias.keySet
-      }
+      client
     )
     this.textDocumentService.adapter = this.adapter
     this.workspaceService.adapter = this.adapter
