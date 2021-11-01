@@ -35,6 +35,7 @@ import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.Position
+import org.eclipse.lsp4j.DiagnosticSeverity
 
 def toLineCol(s: String, offset: Int): (Int, Int) = {
   val line = s.substring(0, offset).count(_ == '\n')
@@ -107,21 +108,27 @@ class ProcessingLanguageServer
         val dias = probs.asScala
           .map(prob => {
             val code = adapter.sketch.getCode(prob.getTabIndex)
+            val dia = Diagnostic(
+              Range(
+                Position(
+                  prob.getLineNumber,
+                  toLineCol(code.getProgram, prob.getStartOffset)._2 - 1
+                ),
+                Position(
+                  prob.getLineNumber,
+                  toLineCol(code.getProgram, prob.getStopOffset)._2 - 1
+                )
+              ),
+              prob.getMessage
+            );
+            dia.setSeverity(if (prob.isError) {
+              DiagnosticSeverity.Error
+            } else {
+              DiagnosticSeverity.Warning
+            });
             (
               adapter.pathToUri(code.getFile),
-              Diagnostic(
-                Range(
-                  Position(
-                    prob.getLineNumber,
-                    toLineCol(code.getProgram, prob.getStartOffset)._2 - 1
-                  ),
-                  Position(
-                    prob.getLineNumber,
-                    toLineCol(code.getProgram, prob.getStopOffset)._2 - 1
-                  )
-                ),
-                prob.getMessage
-              )
+              dia
             )
           })
           .groupBy(_._1)
