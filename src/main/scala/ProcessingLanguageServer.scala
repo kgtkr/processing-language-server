@@ -43,43 +43,6 @@ def toLineCol(s: String, offset: Int): (Int, Int) = {
   (line, col)
 }
 
-class ProcessingAdapter(
-    rootPath: String,
-    problemsCallback: (JList[Problem]) => Unit
-) {
-  val javaMode = ModeContribution
-    .load(
-      null,
-      Platform.getContentFile("modes/java"),
-      "processing.mode.java.JavaMode"
-    )
-    .getMode()
-    .asInstanceOf[JavaMode]
-  val pdeFolder = File(rootPath)
-  val pdeFile = File(pdeFolder, pdeFolder.getName() + ".pde");
-  val sketch = Sketch(pdeFile.toString, javaMode);
-  val completionGenerator = CompletionGenerator(javaMode);
-  val preprocService = PreprocService2(javaMode, sketch);
-  val errorChecker = ErrorChecker2(
-    probs => {
-      problemsCallback(probs)
-    },
-    preprocService
-  )
-  val suggestionGenerator =
-    CompletionGenerator(javaMode)
-
-  def uriToPath(uri: String): File = {
-    val uriPrefix = "file://"
-    File(uri.substring(uriPrefix.length))
-  }
-
-  def pathToUri(path: File): String = {
-    val uriPrefix = "file://"
-    uriPrefix + path.toString
-  }
-}
-
 class ProcessingLanguageServer
     extends LanguageServer
     with LazyLogging
