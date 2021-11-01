@@ -12,11 +12,18 @@ jobs:
         with:
           distribution: temurin
           java-version: '11'
+      - name: Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            cache
+          key: cache
       - name: Coursier cache
         uses: coursier/cache-action@v6
       - name: Build
         run: |
           ./deps.sh
+          ./patch.sh apply
           sbt assembly
       - uses: actions/upload-artifact@v2
         with:
