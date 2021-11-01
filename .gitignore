@@ -3,6 +3,5 @@
 /.metals/
 /.vscode/
 /target/
-/cache/**
-!/cache/.gitkeep
+/cache/
 /lib/

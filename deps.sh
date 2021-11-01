@@ -1,22 +1,22 @@
 #!/bin/sh -eu
 
-BASENAME=processing-4.0b2
-NAME=$BASENAME-linux64
-URL=https://github.com/processing/processing4/releases/download/processing-1277-4.0b2/$NAME.tgz
+VERSION=4.0b2
+TGZ_CACHE_DIR=cache/processing.tgz
+CACHE_DIR=cache/processing
 
-if [ -e cache/$NAME.tgz ]; then
-    exit
+mkdir -p $TGZ_CACHE_DIR
+
+if [ ! -f $TGZ_CACHE_DIR/$VERSION ]; then
+    wget https://github.com/processing/processing4/releases/download/processing-1277-4.0b2/processing-$VERSION-linux64.tgz -O $TGZ_CACHE_DIR/$VERSION
 fi
 
-cd cache
+mkdir -p $CACHE_DIR
 
-wget -L $URL
-tar -xzf $NAME.tgz
-
-cd ../
+if [ ! -e $CACHE_DIR/$VERSION ]; then
+    tar -xzf $TGZ_CACHE_DIR/$VERSION -C $CACHE_DIR
+    mv $CACHE_DIR/processing-$VERSION $CACHE_DIR/$VERSION
+fi
 
 rm -rf lib
 mkdir lib
-cp cache/$BASENAME/lib/*.jar cache/$BASENAME/core/library/*.jar cache/$BASENAME/modes/java/mode/*.jar lib
-
-rm -rf cache/$BASENAME
+cp $CACHE_DIR/$VERSION/lib/*.jar $CACHE_DIR/$VERSION/core/library/*.jar $CACHE_DIR/$VERSION/modes/java/mode/*.jar lib
