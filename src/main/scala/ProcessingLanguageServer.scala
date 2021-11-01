@@ -86,6 +86,7 @@ class ProcessingLanguageServer
     with LanguageClientAware {
   var adapter: ProcessingAdapter = null;
   var client: LanguageClient = null;
+  var prevDiagnosticReportUris = Set[String]()
   override def exit(): Unit = {
     logger.info("exit")
   }
@@ -141,6 +142,16 @@ class ProcessingLanguageServer
             params
           );
         }
+
+        for (uri <- prevDiagnosticReportUris.diff(dias.keySet)) {
+          val params = PublishDiagnosticsParams()
+          params.setUri(uri)
+          params.setDiagnostics(JList.of())
+          client.publishDiagnostics(
+            params
+          );
+        }
+        prevDiagnosticReportUris = dias.keySet
       }
     )
 
