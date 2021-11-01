@@ -9,4 +9,4 @@ VSCode Extension: https://github.com/kgtkr/processing-language-server-vscode
 * [ ] Make it work stably
 * [x] Code Formatting
 * [x] Error Report
-* [ ] Code completion
+* [x] Code completion
