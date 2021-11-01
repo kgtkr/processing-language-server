@@ -16,28 +16,35 @@ class ProcessingWorkspaceService extends WorkspaceService with LazyLogging {
   override def didChangeWatchedFiles(
       params: DidChangeWatchedFilesParams
   ): Unit = {
+    logger.info("didChangeWatchedFiles: " + params)
     for (change <- params.getChanges.asScala) {
       change.getType match {
         case FileChangeType.Created =>
-          adapter.sketch.addFile(adapter.uriToPath(change.getUri))
+          val path = adapter.uriToPath(change.getUri)
+          adapter.sketch.loadNewTab(
+            path.getName,
+            "pde",
+            true
+          )
           adapter.notifySketchChanged();
         case FileChangeType.Changed =>
           adapter.sketch.getCode
             .find(
               _.getFile == adapter.uriToPath(change.getUri)
             )
-            .get
-            .load()
-          adapter.notifySketchChanged();
+            .foreach(code => {
+              code.load()
+              adapter.notifySketchChanged();
+            })
         case FileChangeType.Deleted =>
-          adapter.sketch.removeCode(
-            adapter.sketch.getCode
-              .find(
-                _.getFile == adapter.uriToPath(change.getUri)
-              )
-              .get
-          )
-          adapter.notifySketchChanged();
+          adapter.sketch.getCode
+            .find(
+              _.getFile == adapter.uriToPath(change.getUri)
+            )
+            .foreach(code => {
+              adapter.sketch.removeCode(code)
+              adapter.notifySketchChanged();
+            })
       }
     }
   }

@@ -152,9 +152,7 @@ class ProcessingAdapter(
       line: Int,
       col: Int
   ): CompletableFuture[JList[CompletionItem]] = {
-    logger.debug("111")
     cps.thenApply(ps => {
-      logger.debug("222")
       val path = uriToPath(uri)
       val codeIndex =
         sketch.getCode
