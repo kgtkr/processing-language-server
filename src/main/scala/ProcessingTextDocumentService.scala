@@ -33,22 +33,24 @@ import org.eclipse.lsp4j.MarkupKind
 import org.jsoup.Jsoup
 import org.eclipse.lsp4j.InsertTextFormat
 
-class ProcessingTextDocumentService(val server: ProcessingLanguageServer)
+class ProcessingTextDocumentService
     extends TextDocumentService
     with LazyLogging {
+  var adapter: ProcessingAdapter = null;
+
   override def didChange(
       params: DidChangeTextDocumentParams
   ): Unit = {
     logger.info("didChange")
     val change = params.getContentChanges.get(0)
-    server.adapter.sketch.getCode
+    adapter.sketch.getCode
       .find(
-        _.getFile == server.adapter.uriToPath(params.getTextDocument.getUri)
+        _.getFile == adapter.uriToPath(params.getTextDocument.getUri)
       )
       .get
       .setProgram(change.getText)
-    server.adapter.preprocService.notifySketchChanged()
-    server.adapter.errorChecker.notifySketchChanged()
+    adapter.preprocService.notifySketchChanged()
+    adapter.errorChecker.notifySketchChanged()
   }
   override def didClose(
       params: DidCloseTextDocumentParams
@@ -72,14 +74,14 @@ class ProcessingTextDocumentService(val server: ProcessingLanguageServer)
     logger.debug("completion")
     val p =
       CompletableFuture[LspEither[JList[CompletionItem], CompletionList]]()
-    server.adapter.preprocService.notifySketchChanged()
-    server.adapter.preprocService.whenDone(ps => {
+    adapter.preprocService.notifySketchChanged()
+    adapter.preprocService.whenDone(ps => {
       try {
-        val path = server.adapter.uriToPath(params.getTextDocument.getUri)
+        val path = adapter.uriToPath(params.getTextDocument.getUri)
         val codeIndex =
-          server.adapter.sketch.getCode
+          adapter.sketch.getCode
             .indexWhere(_.getFile == path)
-        val code = server.adapter.sketch.getCode(codeIndex)
+        val code = adapter.sketch.getCode(codeIndex)
         val lineStartOffset = code.getProgram
           .split("\n")
           .take(params.getPosition.getLine + 1)
@@ -102,7 +104,7 @@ class ProcessingTextDocumentService(val server: ProcessingLanguageServer)
         logger.debug(s"phrase: $phrase")
         if (phrase != null) {
           logger.debug(s"lineNumber: $lineNumber")
-          val candidates = server.adapter.suggestionGenerator
+          val candidates = adapter.suggestionGenerator
             .preparePredictions(ps, phrase, lineNumber);
           logger.debug("candidates:" + candidates)
           if (candidates != null && !candidates.isEmpty()) {
@@ -199,10 +201,10 @@ class ProcessingTextDocumentService(val server: ProcessingLanguageServer)
   override def formatting(
       params: DocumentFormattingParams
   ): CompletableFuture[JList[? <: TextEdit]] = {
-    val path = server.adapter.uriToPath(params.getTextDocument.getUri)
+    val path = adapter.uriToPath(params.getTextDocument.getUri)
     CompletableFutures.computeAsync(checker => {
       val code =
-        server.adapter.sketch.getCode.find(_.getFile == path).get.getProgram
+        adapter.sketch.getCode.find(_.getFile == path).get.getProgram
 
       val newCode = AutoFormat().format(code)
       val end = toLineCol(code, code.length)

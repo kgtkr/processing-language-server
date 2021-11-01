@@ -50,23 +50,21 @@ class ProcessingLanguageServer
   var adapter: ProcessingAdapter = null;
   var client: LanguageClient = null;
   var prevDiagnosticReportUris = Set[String]()
+  val textDocumentService = ProcessingTextDocumentService()
+  val workspaceService = ProcessingWorkspaceService()
   override def exit(): Unit = {
     logger.info("exit")
   }
-  override def getTextDocumentService(): TextDocumentService = {
-    ProcessingTextDocumentService(this)
-  }
-  override def getWorkspaceService(): WorkspaceService = {
-    logger.info("getWorkspaceService")
-    ProcessingWorkspaceService(this)
-  }
+  override def getTextDocumentService(): TextDocumentService =
+    textDocumentService
+  override def getWorkspaceService(): WorkspaceService = workspaceService
   override def initialize(
       params: InitializeParams
   ): CompletableFuture[InitializeResult] = {
     Base.setCommandLine();
     Platform.init();
     Preferences.init();
-    adapter = ProcessingAdapter(
+    this.adapter = ProcessingAdapter(
       params.getRootPath,
       probs => {
         val dias = probs.asScala
@@ -117,6 +115,8 @@ class ProcessingLanguageServer
         prevDiagnosticReportUris = dias.keySet
       }
     )
+    this.textDocumentService.adapter = this.adapter
+    this.workspaceService.adapter = this.adapter
 
     logger.info("initialize")
     val capabilities = new ServerCapabilities();

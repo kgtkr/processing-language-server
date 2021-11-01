@@ -7,9 +7,9 @@ import collection.JavaConverters._
 import org.eclipse.lsp4j.DidChangeWatchedFilesParams
 import org.eclipse.lsp4j.FileChangeType
 
-class ProcessingWorkspaceService(val server: ProcessingLanguageServer)
-    extends WorkspaceService
-    with LazyLogging {
+class ProcessingWorkspaceService extends WorkspaceService with LazyLogging {
+  var adapter: ProcessingAdapter = null;
+
   override def didChangeConfiguration(
       params: DidChangeConfigurationParams
   ): Unit = {}
@@ -19,25 +19,25 @@ class ProcessingWorkspaceService(val server: ProcessingLanguageServer)
     for (change <- params.getChanges.asScala) {
       change.getType match {
         case FileChangeType.Created =>
-          server.adapter.sketch.addFile(server.adapter.uriToPath(change.getUri))
-          server.adapter.preprocService.notifySketchChanged()
+          adapter.sketch.addFile(adapter.uriToPath(change.getUri))
+          adapter.preprocService.notifySketchChanged()
         case FileChangeType.Changed =>
-          server.adapter.sketch.getCode
+          adapter.sketch.getCode
             .find(
-              _.getFile == server.adapter.uriToPath(change.getUri)
+              _.getFile == adapter.uriToPath(change.getUri)
             )
             .get
             .load()
-          server.adapter.preprocService.notifySketchChanged()
+          adapter.preprocService.notifySketchChanged()
         case FileChangeType.Deleted =>
-          server.adapter.sketch.removeCode(
-            server.adapter.sketch.getCode
+          adapter.sketch.removeCode(
+            adapter.sketch.getCode
               .find(
-                _.getFile == server.adapter.uriToPath(change.getUri)
+                _.getFile == adapter.uriToPath(change.getUri)
               )
               .get
           )
-          server.adapter.preprocService.notifySketchChanged()
+          adapter.preprocService.notifySketchChanged()
       }
     }
   }
