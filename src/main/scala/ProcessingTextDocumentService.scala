@@ -31,6 +31,7 @@ import org.eclipse.lsp4j.CompletionItemKind
 import org.eclipse.lsp4j.MarkupContent
 import org.eclipse.lsp4j.MarkupKind
 import org.jsoup.Jsoup
+import org.eclipse.lsp4j.InsertTextFormat
 
 class ProcessingTextDocumentService(val server: ProcessingLanguageServer)
     extends TextDocumentService
@@ -126,7 +127,28 @@ class ProcessingTextDocumentService(val server: ProcessingLanguageServer)
                   .map(c => {
                     val item = new CompletionItem()
                     item.setLabel(c.getElementName)
-                    item.setInsertText(c.getCompletionString)
+                    item.setInsertTextFormat(InsertTextFormat.Snippet)
+                    item.setInsertText({
+                      val insert = c.getCompletionString;
+                      if (insert.contains("( )")) {
+                        insert.replace("( )", "($1)")
+                      } else if (insert.contains(",")) {
+                        var n = 1
+                        insert
+                          .replace("(,", "($1,")
+                          .flatMap(c =>
+                            c match {
+                              case ',' =>
+                                n += 1
+                                ",$" + n
+                              case _ =>
+                                c.toString
+                            }
+                          )
+                      } else {
+                        insert
+                      }
+                    })
                     item.setKind(c.getType match {
                       case 0 => // PREDEF_CLASS
                         CompletionItemKind.Class
@@ -151,15 +173,15 @@ class ProcessingTextDocumentService(val server: ProcessingLanguageServer)
             )
 
           } else {
-            LspEither.forLeft(JList.of())
+            p.complete(LspEither.forLeft(JList.of()))
           }
         } else {
-          LspEither.forLeft(JList.of())
+          p.complete(LspEither.forLeft(JList.of()))
         }
       } catch {
         case e: Exception => {
           logger.error(e.toString)
-          LspEither.forLeft(JList.of())
+          p.complete(LspEither.forLeft(JList.of()))
         }
       }
     })
