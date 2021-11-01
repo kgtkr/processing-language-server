@@ -36,11 +36,19 @@ import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.DiagnosticSeverity
+import processing.mode.java.PreprocSketch
+import processing.mode.java.JavaTextArea
+import java.util.Collections
+import processing.mode.java.CompletionCandidate
+import javax.swing.DefaultListModel
+import org.eclipse.lsp4j.InsertTextFormat
+import org.eclipse.lsp4j.CompletionItemKind
+import org.jsoup.Jsoup
 
 class ProcessingAdapter(
     rootPath: String,
     client: LanguageClient
-) {
+) extends LazyLogging {
   Base.setCommandLine();
   Platform.init();
   Preferences.init();
@@ -62,13 +70,20 @@ class ProcessingAdapter(
     updateProblems,
     preprocService
   )
+  var cps: CompletableFuture[PreprocSketch] =
+    CompletableFutures.computeAsync(_ => ???)
   val suggestionGenerator =
     CompletionGenerator(javaMode)
   notifySketchChanged();
 
   def notifySketchChanged() = {
+    val cps = CompletableFuture[PreprocSketch]
+    this.cps = cps;
     preprocService.notifySketchChanged()
     errorChecker.notifySketchChanged()
+    preprocService.whenDone(ps => {
+      cps.complete(ps)
+    })
   }
 
   def uriToPath(uri: String): File = {
@@ -130,5 +145,116 @@ class ProcessingAdapter(
       );
     }
     prevDiagnosticReportUris = dias.keySet
+  }
+
+  def generateCompletion(
+      uri: String,
+      line: Int,
+      col: Int
+  ): CompletableFuture[JList[CompletionItem]] = {
+    logger.debug("111")
+    cps.thenApply(ps => {
+      logger.debug("222")
+      val path = uriToPath(uri)
+      val codeIndex =
+        sketch.getCode
+          .indexWhere(_.getFile == path)
+      val code = sketch.getCode(codeIndex)
+      val lineStartOffset = code.getProgram
+        .split("\n")
+        .take(line + 1)
+        .mkString("\n")
+        .length
+      val lineNumber = ps.tabOffsetToJavaLine(codeIndex, lineStartOffset);
+
+      val text = code.getProgram
+        .split("\n")(line)
+        .substring(0, col)
+      val phrase = {
+        val method = classOf[JavaTextArea]
+          .getDeclaredMethod("parsePhrase", classOf[String])
+
+        method.setAccessible(true)
+        method
+      }
+        .invoke(null, text)
+        .asInstanceOf[String]
+      logger.debug(s"phrase: $phrase")
+      if (phrase != null) {
+        logger.debug(s"lineNumber: $lineNumber")
+        val candidates = suggestionGenerator
+          .preparePredictions(ps, phrase, lineNumber);
+        logger.debug("candidates:" + candidates)
+        if (candidates != null && !candidates.isEmpty()) {
+          Collections.sort(candidates);
+          val defListModel = {
+            val method = classOf[CompletionGenerator]
+              .getDeclaredMethod(
+                "filterPredictions",
+                classOf[JList[CompletionCandidate]]
+              )
+            method.setAccessible(true)
+            method
+              .invoke(null, candidates)
+              .asInstanceOf[DefaultListModel[CompletionCandidate]]
+          }
+
+          val filtered = Collections.list(defListModel.elements)
+          logger.debug("filtered:" + filtered)
+
+          filtered.asScala
+            .map(c => {
+              val item = new CompletionItem()
+              item.setLabel(c.getElementName)
+              item.setInsertTextFormat(InsertTextFormat.Snippet)
+              item.setInsertText({
+                val insert = c.getCompletionString;
+                if (insert.contains("( )")) {
+                  insert.replace("( )", "($1)")
+                } else if (insert.contains(",")) {
+                  var n = 1
+                  insert
+                    .replace("(,", "($1,")
+                    .flatMap(c =>
+                      c match {
+                        case ',' =>
+                          n += 1
+                          ",$" + n
+                        case _ =>
+                          c.toString
+                      }
+                    )
+                } else {
+                  insert
+                }
+              })
+              item.setKind(c.getType match {
+                case 0 => // PREDEF_CLASS
+                  CompletionItemKind.Class
+                case 1 => // PREDEF_FIELD
+                  CompletionItemKind.Constant
+                case 2 => // PREDEF_METHOD
+                  CompletionItemKind.Function
+                case 3 => // LOCAL_CLASS
+                  CompletionItemKind.Class
+                case 4 => // LOCAL_METHOD
+                  CompletionItemKind.Method
+                case 5 => // LOCAL_FIELD
+                  CompletionItemKind.Field
+                case 6 => // LOCAL_VARIABLE
+                  CompletionItemKind.Variable
+              })
+              item.setDetail(Jsoup.parse(c.getLabel).text())
+              item
+            })
+            .asJava
+
+        } else {
+          JList.of()
+        }
+      } else {
+        JList.of()
+      }
+    })
   }
 }
