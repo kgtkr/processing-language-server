@@ -1,5 +1,5 @@
---- cache/processing4-src/e6c1c0c45a02baf744cf02522eb83eb3b6ccc542/java/src/processing/mode/java/ErrorChecker.java	2021-10-29 08:06:10.000000000 +0900
-+++ src/main/java/processing/mode/java/ErrorChecker2.java	2021-11-01 16:42:05.815562100 +0900
+--- cache/processing-src/processing-1277-4.0b2/java/src/processing/mode/java/ErrorChecker.java	2021-10-05 11:45:03.000000000 +0900
++++ src/main/java/processing/mode/java/ErrorChecker2.java	2021-11-03 16:01:09.181062300 +0900
 @@ -28,7 +28,7 @@ import processing.app.Language;
  import processing.app.Problem;
  

@@ -5,13 +5,30 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        processing_version:
+          - java_version: '11'
+            version_prefix: '4'
+            REPO: 'processing4'
+            VERSION_NUMBER: '1277'
+            VERSION: '4.0b2'
+            TAG: 'processing-1277-4.0b2'
+            ASSET_NAME: 'processing-4.0b2-linux64.tgz'
+          - java_version: '8'
+            version_prefix: '3'
+            REPO: 'processing'
+            VERSION_NUMBER: '0270'
+            VERSION: '3.5.4'
+            TAG: 'processing-0270-3.5.4'
+            ASSET_NAME: 'processing-3.5.4-linux64.tgz'
     steps:
       - uses: actions/checkout@v2
       - name: Setup JDK
         uses: actions/setup-java@v2
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: ${{ matrix.processing_version.java_version }}
       - name: Cache
         uses: actions/cache@v2
         with:
@@ -20,12 +37,29 @@ jobs:
           key: cache
       - name: Coursier cache
         uses: coursier/cache-action@v6
-      - name: Build
+      - name: Pre Build
         run: |
           ./deps.sh
           ./patch.sh apply
+        env:
+          REPO: ${{ matrix.processing_version.REPO }}
+          VERSION_NUMBER: ${{ matrix.processing_version.VERSION_NUMBER }}
+          VERSION: ${{ matrix.processing_version.VERSION }}
+          TAG: ${{ matrix.processing_version.TAG }}
+          ASSET_NAME: ${{ matrix.processing_version.ASSET_NAME }}
+      - name: Build
+        run: |
           sbt assembly
-      - uses: actions/upload-artifact@v2
+      - name: Pre Deploy
+        run: |
+          mkdir bin
+          VERSION=${{ matrix.processing_version.version_prefix }}-$(git show -s --format='%cd' --date=format:'%Y%m%d%H%M%S' HEAD)-${{ github.sha }}
+          cp target/scala-3.1.0/processing-language-server-assembly-0.1.0-SNAPSHOT.jar bin/$VERSION.jar
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          name: processing-language-server-assembly-0.1.0-SNAPSHOT.jar
-          path: target/scala-3.1.0/processing-language-server-assembly-0.1.0-SNAPSHOT.jar
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./bin
+          publish_branch: bin
+          keep_files: true
+        if: github.ref == 'refs/heads/master'
