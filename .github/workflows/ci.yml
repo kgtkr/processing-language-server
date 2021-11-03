@@ -9,19 +9,9 @@ jobs:
       matrix:
         processing_version:
           - java_version: '11'
-            version_prefix: '4'
-            REPO: 'processing4'
-            VERSION_NUMBER: '1277'
-            VERSION: '4.0b2'
-            TAG: 'processing-1277-4.0b2'
-            ASSET_NAME: 'processing-4.0b2-linux64.tgz'
-          - java_version: '8'
-            version_prefix: '3'
-            REPO: 'processing'
-            VERSION_NUMBER: '0270'
-            VERSION: '3.5.4'
-            TAG: 'processing-0270-3.5.4'
-            ASSET_NAME: 'processing-3.5.4-linux64.tgz'
+            version_prefix: '4.0b2'
+          - java_version: '11'
+            version_prefix: '4.0b1'
     steps:
       - uses: actions/checkout@v2
       - name: Setup JDK
@@ -39,14 +29,9 @@ jobs:
         uses: coursier/cache-action@v6
       - name: Pre Build
         run: |
+          source env/${{ matrix.processing_version.version_prefix }}.env
           ./deps.sh
           ./patch.sh apply
-        env:
-          REPO: ${{ matrix.processing_version.REPO }}
-          VERSION_NUMBER: ${{ matrix.processing_version.VERSION_NUMBER }}
-          VERSION: ${{ matrix.processing_version.VERSION }}
-          TAG: ${{ matrix.processing_version.TAG }}
-          ASSET_NAME: ${{ matrix.processing_version.ASSET_NAME }}
       - name: Build
         run: |
           sbt assembly

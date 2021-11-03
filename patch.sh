@@ -10,7 +10,7 @@ resolve_patch () {
 
     SRC_PATH=$SRC_CACHE_DIR/$TAG/$SRC
     PATCHED_PATH=src/main/java/$PATCHED
-    PATCH_PATH=patches/$PATCH
+    PATCH_PATH=patches/$PATCH_NAME/$PATCH
     PATCHED_DIR=$(dirname $PATCHED_PATH)
 
     if [ $MODE = "create" ]; then
