@@ -32,6 +32,7 @@ jobs:
           source env/${{ matrix.processing_version.version_prefix }}.env
           ./deps.sh
           ./patch.sh apply
+        shell: bash
       - name: Build
         run: |
           sbt assembly
