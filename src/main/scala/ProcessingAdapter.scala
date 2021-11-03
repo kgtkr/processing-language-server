@@ -44,6 +44,7 @@ import javax.swing.DefaultListModel
 import org.eclipse.lsp4j.InsertTextFormat
 import org.eclipse.lsp4j.CompletionItemKind
 import org.jsoup.Jsoup
+import java.net.URI
 
 class ProcessingAdapter(
     rootPath: String,
@@ -87,13 +88,11 @@ class ProcessingAdapter(
   }
 
   def uriToPath(uri: String): File = {
-    val uriPrefix = "file://"
-    File(uri.substring(uriPrefix.length))
+    File(new URI(uri))
   }
 
   def pathToUri(path: File): String = {
-    val uriPrefix = "file://"
-    uriPrefix + path.toString
+    path.toURI.toString
   }
 
   var prevDiagnosticReportUris = Set[String]()
