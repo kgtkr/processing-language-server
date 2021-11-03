@@ -29,10 +29,9 @@ jobs:
         uses: coursier/cache-action@v6
       - name: Pre Build
         run: |
-          source env/${{ matrix.processing_version.version_prefix }}.env
+          export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)
           ./deps.sh
           ./patch.sh apply
-        shell: bash
       - name: Build
         run: |
           sbt assembly
