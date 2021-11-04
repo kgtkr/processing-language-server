@@ -43,13 +43,13 @@ class ProcessingTextDocumentService
   ): Unit = {
     logger.info("didChange")
     val change = params.getContentChanges.get(0)
-    adapter.sketch.getCode
-      .find(
-        _.getFile == adapter.uriToPath(params.getTextDocument.getUri)
-      )
-      .get
-      .setProgram(change.getText)
-    adapter.notifySketchChanged();
+    val code = adapter
+      .findCodeByUri(params.getTextDocument.getUri)
+
+    code.foreach { code =>
+      code.setProgram(change.getText)
+      adapter.notifySketchChanged();
+    }
   }
   override def didClose(
       params: DidCloseTextDocumentParams
@@ -91,22 +91,25 @@ class ProcessingTextDocumentService
   override def formatting(
       params: DocumentFormattingParams
   ): CompletableFuture[JList[? <: TextEdit]] = {
-    val path = adapter.uriToPath(params.getTextDocument.getUri)
     CompletableFutures.computeAsync(checker => {
       val code =
-        adapter.sketch.getCode.find(_.getFile == path).get.getProgram
-
-      val newCode = AutoFormat().format(code)
-      val end = toLineCol(code, code.length)
-      JList.of(
-        TextEdit(
-          Range(
-            Position(0, 0),
-            Position(end._1, end._2)
-          ),
-          newCode
-        )
-      )
+        adapter.findCodeByUri(params.getTextDocument.getUri).map(_.getProgram)
+      code
+        .map(code => {
+          val newCode = AutoFormat().format(code)
+          val end = ProcessingAdapter
+            .toLineCol(code, code.length)
+          JList.of(
+            TextEdit(
+              Range(
+                Position(0, 0),
+                Position(end._1, end._2)
+              ),
+              newCode
+            )
+          )
+        })
+        .getOrElse(JList.of())
     });
   }
 }

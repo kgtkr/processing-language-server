@@ -45,6 +45,23 @@ import org.eclipse.lsp4j.InsertTextFormat
 import org.eclipse.lsp4j.CompletionItemKind
 import org.jsoup.Jsoup
 import java.net.URI
+import processing.app.SketchCode
+
+object ProcessingAdapter {
+  def uriToPath(uri: String): File = {
+    File(new URI(uri))
+  }
+
+  def pathToUri(path: File): String = {
+    path.toURI.toString
+  }
+
+  def toLineCol(s: String, offset: Int): (Int, Int) = {
+    val line = s.substring(0, offset).count(_ == '\n')
+    val col = offset - s.substring(0, offset).lastIndexOf('\n')
+    (line, col)
+  }
+}
 
 class ProcessingAdapter(
     rootPath: String,
@@ -87,12 +104,13 @@ class ProcessingAdapter(
     })
   }
 
-  def uriToPath(uri: String): File = {
-    File(new URI(uri))
-  }
-
-  def pathToUri(path: File): String = {
-    path.toURI.toString
+  def findCodeByUri(uri: String): Option[SketchCode] = {
+    val path = ProcessingAdapter.uriToPath(uri)
+    val code = sketch.getCode.find(_.getFile == path)
+    if (code.isEmpty) {
+      logger.warn(s"code not found: $uri")
+    }
+    code
   }
 
   var prevDiagnosticReportUris = Set[String]()
@@ -105,11 +123,15 @@ class ProcessingAdapter(
           Range(
             Position(
               prob.getLineNumber,
-              toLineCol(code.getProgram, prob.getStartOffset)._2 - 1
+              ProcessingAdapter
+                .toLineCol(code.getProgram, prob.getStartOffset)
+                ._2 - 1
             ),
             Position(
               prob.getLineNumber,
-              toLineCol(code.getProgram, prob.getStopOffset)._2 - 1
+              ProcessingAdapter
+                .toLineCol(code.getProgram, prob.getStopOffset)
+                ._2 - 1
             )
           ),
           prob.getMessage
@@ -120,7 +142,7 @@ class ProcessingAdapter(
           DiagnosticSeverity.Warning
         });
         (
-          pathToUri(code.getFile),
+          ProcessingAdapter.pathToUri(code.getFile),
           dia
         )
       })
@@ -146,28 +168,53 @@ class ProcessingAdapter(
     prevDiagnosticReportUris = dias.keySet
   }
 
-  def generateCompletion(
-      uri: String,
-      line: Int,
-      col: Int
-  ): CompletableFuture[JList[CompletionItem]] = {
-    cps.thenApply(ps => {
-      val path = uriToPath(uri)
-      val codeIndex =
-        sketch.getCode
-          .indexWhere(_.getFile == path)
-      val code = sketch.getCode(codeIndex)
-      val lineStartOffset = code.getProgram
-        .split("\n")
-        .take(line + 1)
-        .mkString("\n")
-        .length
-      val lineNumber = ps.tabOffsetToJavaLine(codeIndex, lineStartOffset);
+  def convertCompletionCandidate(c: CompletionCandidate): CompletionItem = {
+    val item = new CompletionItem()
+    item.setLabel(c.getElementName)
+    item.setInsertTextFormat(InsertTextFormat.Snippet)
+    item.setInsertText({
+      val insert = c.getCompletionString;
+      if (insert.contains("( )")) {
+        insert.replace("( )", "($1)")
+      } else if (insert.contains(",")) {
+        var n = 1
+        insert
+          .replace("(,", "($1,")
+          .flatMap(c =>
+            c match {
+              case ',' =>
+                n += 1
+                ",$" + n
+              case _ =>
+                c.toString
+            }
+          )
+      } else {
+        insert
+      }
+    })
+    item.setKind(c.getType match {
+      case 0 => // PREDEF_CLASS
+        CompletionItemKind.Class
+      case 1 => // PREDEF_FIELD
+        CompletionItemKind.Constant
+      case 2 => // PREDEF_METHOD
+        CompletionItemKind.Function
+      case 3 => // LOCAL_CLASS
+        CompletionItemKind.Class
+      case 4 => // LOCAL_METHOD
+        CompletionItemKind.Method
+      case 5 => // LOCAL_FIELD
+        CompletionItemKind.Field
+      case 6 => // LOCAL_VARIABLE
+        CompletionItemKind.Variable
+    })
+    item.setDetail(Jsoup.parse(c.getLabel).text())
+    item
+  }
 
-      val text = code.getProgram
-        .split("\n")(line)
-        .substring(0, col)
-      val phrase = {
+  def parsePhrase(text: String): Option[String] = {
+    Option({
         val method = classOf[JavaTextArea]
           .getDeclaredMethod("parsePhrase", classOf[String])
 
@@ -176,82 +223,62 @@ class ProcessingAdapter(
       }
         .invoke(null, text)
         .asInstanceOf[String]
-      logger.debug(s"phrase: $phrase")
-      if (phrase != null) {
-        logger.debug(s"lineNumber: $lineNumber")
-        val candidates = suggestionGenerator
-          .preparePredictions(ps, phrase, lineNumber);
-        logger.debug("candidates:" + candidates)
-        if (candidates != null && !candidates.isEmpty()) {
-          Collections.sort(candidates);
-          val defListModel = {
-            val method = classOf[CompletionGenerator]
-              .getDeclaredMethod(
-                "filterPredictions",
-                classOf[JList[CompletionCandidate]]
-              )
-            method.setAccessible(true)
-            method
-              .invoke(null, candidates)
-              .asInstanceOf[DefaultListModel[CompletionCandidate]]
-          }
+    )
+  }
 
-          val filtered = Collections.list(defListModel.elements)
-          logger.debug("filtered:" + filtered)
+  def filterPredictions(
+      candidates: JList[CompletionCandidate]
+  ): JList[CompletionCandidate] = {
+    val filtered = {
+      val method = classOf[CompletionGenerator]
+        .getDeclaredMethod(
+          "filterPredictions",
+          classOf[JList[CompletionCandidate]]
+        )
+      method.setAccessible(true)
+      method
+        .invoke(null, candidates)
+        .asInstanceOf[DefaultListModel[CompletionCandidate]]
+    }
+    Collections.list(filtered.elements)
+  }
 
-          filtered.asScala
-            .map(c => {
-              val item = new CompletionItem()
-              item.setLabel(c.getElementName)
-              item.setInsertTextFormat(InsertTextFormat.Snippet)
-              item.setInsertText({
-                val insert = c.getCompletionString;
-                if (insert.contains("( )")) {
-                  insert.replace("( )", "($1)")
-                } else if (insert.contains(",")) {
-                  var n = 1
-                  insert
-                    .replace("(,", "($1,")
-                    .flatMap(c =>
-                      c match {
-                        case ',' =>
-                          n += 1
-                          ",$" + n
-                        case _ =>
-                          c.toString
-                      }
-                    )
-                } else {
-                  insert
-                }
-              })
-              item.setKind(c.getType match {
-                case 0 => // PREDEF_CLASS
-                  CompletionItemKind.Class
-                case 1 => // PREDEF_FIELD
-                  CompletionItemKind.Constant
-                case 2 => // PREDEF_METHOD
-                  CompletionItemKind.Function
-                case 3 => // LOCAL_CLASS
-                  CompletionItemKind.Class
-                case 4 => // LOCAL_METHOD
-                  CompletionItemKind.Method
-                case 5 => // LOCAL_FIELD
-                  CompletionItemKind.Field
-                case 6 => // LOCAL_VARIABLE
-                  CompletionItemKind.Variable
-              })
-              item.setDetail(Jsoup.parse(c.getLabel).text())
-              item
-            })
-            .asJava
+  def generateCompletion(
+      uri: String,
+      line: Int,
+      col: Int
+  ): CompletableFuture[JList[CompletionItem]] = {
+    cps.thenApply(ps => {
+      val result =
+        for {
+          code <- this.findCodeByUri(uri)
+          codeIndex = sketch.getCodeIndex(code)
+          lineStartOffset = code.getProgram
+            .split("\n")
+            .take(line + 1)
+            .mkString("\n")
+            .length
+          lineNumber = ps.tabOffsetToJavaLine(codeIndex, lineStartOffset);
 
-        } else {
-          JList.of()
-        }
-      } else {
-        JList.of()
-      }
+          text = code.getProgram
+            .split("\n")(line) // TODO: 範囲外のエラー処理
+            .substring(0, col)
+          phrase <- parsePhrase(text)
+          _ = logger.debug(s"phrase: $phrase")
+          _ = logger.debug(s"lineNumber: $lineNumber")
+          candidates <- Option(
+            suggestionGenerator
+              .preparePredictions(ps, phrase, lineNumber)
+          ).filter(x => !x.isEmpty())
+          _ = Collections.sort(candidates)
+          _ = logger.debug("candidates:" + candidates)
+          filtered = filterPredictions(candidates)
+          _ = logger.debug("filtered:" + filtered)
+        } yield filtered.asScala
+          .map(convertCompletionCandidate)
+          .asJava
+
+      result.getOrElse(JList.of())
     })
   }
 }

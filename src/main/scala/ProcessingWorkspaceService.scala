@@ -20,7 +20,7 @@ class ProcessingWorkspaceService extends WorkspaceService with LazyLogging {
     for (change <- params.getChanges.asScala) {
       change.getType match {
         case FileChangeType.Created =>
-          val path = adapter.uriToPath(change.getUri)
+          val path = ProcessingAdapter.uriToPath(change.getUri)
           adapter.sketch.loadNewTab(
             path.getName,
             "pde",
@@ -28,23 +28,19 @@ class ProcessingWorkspaceService extends WorkspaceService with LazyLogging {
           )
           adapter.notifySketchChanged();
         case FileChangeType.Changed =>
-          adapter.sketch.getCode
-            .find(
-              _.getFile == adapter.uriToPath(change.getUri)
-            )
-            .foreach(code => {
+          adapter
+            .findCodeByUri(change.getUri)
+            .foreach { code =>
               code.load()
               adapter.notifySketchChanged();
-            })
+            }
         case FileChangeType.Deleted =>
-          adapter.sketch.getCode
-            .find(
-              _.getFile == adapter.uriToPath(change.getUri)
-            )
-            .foreach(code => {
+          adapter
+            .findCodeByUri(change.getUri)
+            .foreach { code =>
               adapter.sketch.removeCode(code)
               adapter.notifySketchChanged();
-            })
+            }
       }
     }
   }

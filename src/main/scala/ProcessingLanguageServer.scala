@@ -37,12 +37,6 @@ import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.DiagnosticSeverity
 
-def toLineCol(s: String, offset: Int): (Int, Int) = {
-  val line = s.substring(0, offset).count(_ == '\n')
-  val col = offset - s.substring(0, offset).lastIndexOf('\n')
-  (line, col)
-}
-
 class ProcessingLanguageServer
     extends LanguageServer
     with LazyLogging
