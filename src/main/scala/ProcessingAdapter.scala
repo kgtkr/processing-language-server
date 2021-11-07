@@ -46,14 +46,23 @@ import org.eclipse.lsp4j.CompletionItemKind
 import org.jsoup.Jsoup
 import java.net.URI
 import processing.app.SketchCode
+import scala.util.Try
 
-object ProcessingAdapter {
-  def uriToPath(uri: String): File = {
-    File(new URI(uri))
+extension (file: File)
+  def lowerExtension: Option[String] = {
+    val s = file.toString
+    val dot = s.lastIndexOf('.')
+    if (dot == -1) None
+    else Some(s.substring(dot + 1).toLowerCase)
   }
 
-  def pathToUri(path: File): String = {
-    path.toURI.toString
+object ProcessingAdapter {
+  def uriToPath(uri: URI): Option[File] = {
+    Try(File(uri)).toOption
+  }
+
+  def pathToUri(path: File): URI = {
+    path.toURI
   }
 
   def toLineCol(s: String, offset: Int): (Int, Int) = {
@@ -64,7 +73,7 @@ object ProcessingAdapter {
 }
 
 class ProcessingAdapter(
-    rootPath: String,
+    rootPath: File,
     client: LanguageClient
 ) extends LazyLogging {
   Base.setCommandLine();
@@ -79,7 +88,7 @@ class ProcessingAdapter(
     )
     .getMode()
     .asInstanceOf[JavaMode]
-  val pdeFolder = File(rootPath)
+  val pdeFolder = rootPath
   val pdeFile = File(pdeFolder, pdeFolder.getName() + ".pde");
   val sketch = Sketch(pdeFile.toString, javaMode);
   val completionGenerator = CompletionGenerator(javaMode);
@@ -94,6 +103,18 @@ class ProcessingAdapter(
     CompletionGenerator(javaMode)
   notifySketchChanged();
 
+  def workspaceIncludeUri(uri: URI): Boolean = {
+    ProcessingAdapter
+      .uriToPath(uri)
+      .map(file =>
+        file.getParentFile == rootPath && {
+          val ext = file.lowerExtension.getOrElse("")
+          ext == "pde" || ext == "java"
+        }
+      )
+      .getOrElse(false)
+  }
+
   def notifySketchChanged() = {
     val cps = CompletableFuture[PreprocSketch]
     this.cps = cps;
@@ -104,16 +125,14 @@ class ProcessingAdapter(
     })
   }
 
-  def findCodeByUri(uri: String): Option[SketchCode] = {
-    val path = ProcessingAdapter.uriToPath(uri)
-    val code = sketch.getCode.find(_.getFile == path)
-    if (code.isEmpty) {
-      logger.warn(s"code not found: $uri")
-    }
-    code
+  def findCodeByUri(uri: URI): Option[SketchCode] = {
+    for {
+      path <- ProcessingAdapter.uriToPath(uri)
+      code <- sketch.getCode.find(_.getFile == path)
+    } yield code
   }
 
-  var prevDiagnosticReportUris = Set[String]()
+  var prevDiagnosticReportUris = Set[URI]()
 
   def updateProblems(probs: JList[Problem]): Unit = {
     val dias = probs.asScala
@@ -150,7 +169,7 @@ class ProcessingAdapter(
 
     for ((uri, dias) <- dias) {
       val params = PublishDiagnosticsParams()
-      params.setUri(uri)
+      params.setUri(uri.toString)
       params.setDiagnostics(dias.map(_._2).toList.asJava)
       client.publishDiagnostics(
         params
@@ -159,7 +178,7 @@ class ProcessingAdapter(
 
     for (uri <- prevDiagnosticReportUris.diff(dias.keySet)) {
       val params = PublishDiagnosticsParams()
-      params.setUri(uri)
+      params.setUri(uri.toString)
       params.setDiagnostics(JList.of())
       client.publishDiagnostics(
         params
@@ -244,7 +263,7 @@ class ProcessingAdapter(
   }
 
   def generateCompletion(
-      uri: String,
+      uri: URI,
       line: Int,
       col: Int
   ): CompletableFuture[JList[CompletionItem]] = {

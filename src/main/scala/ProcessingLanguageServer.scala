@@ -55,7 +55,7 @@ class ProcessingLanguageServer
       params: InitializeParams
   ): CompletableFuture[InitializeResult] = {
     this.adapter = ProcessingAdapter(
-      params.getRootPath,
+      File(params.getRootPath),
       client
     )
     this.textDocumentService.adapter = this.adapter
