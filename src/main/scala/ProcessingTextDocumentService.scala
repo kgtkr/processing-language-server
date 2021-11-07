@@ -32,6 +32,7 @@ import org.eclipse.lsp4j.MarkupContent
 import org.eclipse.lsp4j.MarkupKind
 import org.jsoup.Jsoup
 import org.eclipse.lsp4j.InsertTextFormat
+import java.net.URI
 
 class ProcessingTextDocumentService
     extends TextDocumentService
@@ -43,13 +44,11 @@ class ProcessingTextDocumentService
   ): Unit = {
     logger.info("didChange")
     val change = params.getContentChanges.get(0)
-    val code = adapter
-      .findCodeByUri(params.getTextDocument.getUri)
-
-    code.foreach { code =>
-      code.setProgram(change.getText)
-      adapter.notifySketchChanged();
-    }
+    adapter.workspace.updateDocument(
+      URI(params.getTextDocument.getUri),
+      change.getText
+    )
+    adapter.notifySketchChanged();
   }
   override def didClose(
       params: DidCloseTextDocumentParams
@@ -93,7 +92,9 @@ class ProcessingTextDocumentService
   ): CompletableFuture[JList[? <: TextEdit]] = {
     CompletableFutures.computeAsync(checker => {
       val code =
-        adapter.findCodeByUri(params.getTextDocument.getUri).map(_.getProgram)
+        adapter.workspace
+          .findByUri(URI(params.getTextDocument.getUri))
+          .map(_.code)
       code
         .map(code => {
           val newCode = AutoFormat().format(code)

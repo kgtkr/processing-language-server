@@ -46,16 +46,100 @@ import org.eclipse.lsp4j.CompletionItemKind
 import org.jsoup.Jsoup
 import java.net.URI
 import processing.app.SketchCode
+import processing.app.Mode
+import scala.util.Try
+
+extension (file: File)
+  def lowerExtension: Option[String] = {
+    val s = file.toString
+    val dot = s.lastIndexOf('.')
+    if (dot == -1) None
+    else Some(s.substring(dot + 1).toLowerCase)
+  }
+
+class ProcessingDocument(val uri: URI, var code: String) {
+  def sketchCode: SketchCode = {
+    val code = new SketchCodeAdapter(File(uri))
+    code.setProgram2(this.code)
+    code
+  }
+}
+
+class ProcessingWorkspace(
+    val mode: JavaMode,
+    val rootPath: File
+) {
+  val sketch = SketchAdapter(mode)
+  val primaryFileUri = File(rootPath, rootPath.getName + ".pde").toURI
+  var documents: Vector[ProcessingDocument] = Vector()
+  updateSketch()
+
+  def findIndexByUri(uri: URI): Option[Int] = {
+    Some(documents.indexWhere(_.uri == uri)).filter(_ >= 0)
+  }
+
+  def findByUri(uri: URI): Option[ProcessingDocument] = {
+    documents.find(_.uri == uri)
+  }
+
+  def addDocument(uri: URI, code: String): Boolean = {
+    val has = documents.exists(_.uri == uri)
+    val include = workspaceIncludeUri(uri)
+    if (include && !has) {
+      documents = documents :+ ProcessingDocument(uri, code)
+      updateSketch()
+    } else if (has) {
+      updateDocument(uri, code)
+    }
+    include
+  }
+
+  def removeDocument(uri: URI) = {
+    documents = documents.filterNot(_.uri == uri)
+    updateSketch()
+  }
+
+  def updateDocument(uri: URI, code: String) = {
+    findByUri(uri) match {
+      case Some(d) =>
+        d.code = code
+        updateSketch()
+      case None =>
+        addDocument(uri, code)
+    }
+  }
+
+  def workspaceIncludeUri(uri: URI): Boolean = {
+    Try(File(uri)).toOption
+      .map(file =>
+        file.getParentFile == rootPath && {
+          val ext = file.lowerExtension.getOrElse("")
+          ext == "pde" || ext == "java"
+        }
+      )
+      .getOrElse(false)
+  }
+
+  def updateSketch() = {
+    if (findByUri(primaryFileUri).isEmpty) {
+      documents = documents :+ (ProcessingDocument(
+        primaryFileUri,
+        ""
+      ))
+    }
+
+    documents =
+      documents.sortBy(doc => (doc.uri != primaryFileUri, File(doc.uri)))
+
+    sketch.setCode(
+      documents
+        .map(_.sketchCode)
+        .toArray
+    )
+  }
+}
 
 object ProcessingAdapter {
-  def uriToPath(uri: String): File = {
-    File(new URI(uri))
-  }
-
-  def pathToUri(path: File): String = {
-    path.toURI.toString
-  }
-
   def toLineCol(s: String, offset: Int): (Int, Int) = {
     val line = s.substring(0, offset).count(_ == '\n')
     val col = offset - s.substring(0, offset).lastIndexOf('\n')
@@ -64,7 +148,7 @@ object ProcessingAdapter {
 }
 
 class ProcessingAdapter(
-    rootPath: String,
+    rootPath: File,
     client: LanguageClient
 ) extends LazyLogging {
   Base.setCommandLine();
@@ -79,11 +163,9 @@ class ProcessingAdapter(
     )
     .getMode()
     .asInstanceOf[JavaMode]
-  val pdeFolder = File(rootPath)
-  val pdeFile = File(pdeFolder, pdeFolder.getName() + ".pde");
-  val sketch = Sketch(pdeFile.toString, javaMode);
+  val workspace = ProcessingWorkspace(javaMode, rootPath)
   val completionGenerator = CompletionGenerator(javaMode);
-  val preprocService = PreprocService2(javaMode, sketch);
+  val preprocService = PreprocService2(javaMode, workspace.sketch);
   val errorChecker = ErrorChecker2(
     updateProblems,
     preprocService
@@ -104,33 +186,24 @@ class ProcessingAdapter(
     })
   }
 
-  def findCodeByUri(uri: String): Option[SketchCode] = {
-    val path = ProcessingAdapter.uriToPath(uri)
-    val code = sketch.getCode.find(_.getFile == path)
-    if (code.isEmpty) {
-      logger.warn(s"code not found: $uri")
-    }
-    code
-  }
-
-  var prevDiagnosticReportUris = Set[String]()
+  var prevDiagnosticReportUris = Set[URI]()
 
   def updateProblems(probs: JList[Problem]): Unit = {
     val dias = probs.asScala
       .map(prob => {
-        val code = sketch.getCode(prob.getTabIndex)
+        val code = workspace.documents(prob.getTabIndex)
         val dia = Diagnostic(
           Range(
             Position(
               prob.getLineNumber,
               ProcessingAdapter
-                .toLineCol(code.getProgram, prob.getStartOffset)
+                .toLineCol(code.code, prob.getStartOffset)
                 ._2 - 1
             ),
             Position(
               prob.getLineNumber,
               ProcessingAdapter
-                .toLineCol(code.getProgram, prob.getStopOffset)
+                .toLineCol(code.code, prob.getStopOffset)
                 ._2 - 1
             )
           ),
@@ -142,7 +215,7 @@ class ProcessingAdapter(
           DiagnosticSeverity.Warning
         });
         (
-          ProcessingAdapter.pathToUri(code.getFile),
+          code.uri,
           dia
         )
       })
@@ -150,7 +223,7 @@ class ProcessingAdapter(
 
     for ((uri, dias) <- dias) {
       val params = PublishDiagnosticsParams()
-      params.setUri(uri)
+      params.setUri(uri.toString)
       params.setDiagnostics(dias.map(_._2).toList.asJava)
       client.publishDiagnostics(
         params
@@ -159,7 +232,7 @@ class ProcessingAdapter(
 
     for (uri <- prevDiagnosticReportUris.diff(dias.keySet)) {
       val params = PublishDiagnosticsParams()
-      params.setUri(uri)
+      params.setUri(uri.toString)
       params.setDiagnostics(JList.of())
       client.publishDiagnostics(
         params
@@ -251,16 +324,16 @@ class ProcessingAdapter(
     cps.thenApply(ps => {
       val result =
         for {
-          code <- this.findCodeByUri(uri)
-          codeIndex = sketch.getCodeIndex(code)
-          lineStartOffset = code.getProgram
+          code <- this.workspace.findByUri(URI(uri))
+          codeIndex <- this.workspace.findIndexByUri(URI(uri))
+          lineStartOffset = code.code
             .split("\n")
             .take(line + 1)
             .mkString("\n")
             .length
           lineNumber = ps.tabOffsetToJavaLine(codeIndex, lineStartOffset);
 
-          text = code.getProgram
+          text = code.code
             .split("\n")(line) // TODO: 範囲外のエラー処理
             .substring(0, col)
           phrase <- parsePhrase(text)
@@ -280,5 +353,40 @@ class ProcessingAdapter(
 
       result.getOrElse(JList.of())
     })
+  }
+}
+
+// IOに依存しないSketch
+class SketchAdapter(mode: Mode) extends Sketch(null, mode) {
+
+  override def load(_path: String) = {}
+
+  def setCode(code: Array[SketchCode]) = {
+    {
+      val field = classOf[Sketch].getDeclaredField("code")
+      field.setAccessible(true)
+      field.set(this, code)
+    }
+
+    {
+      val field = classOf[Sketch].getDeclaredField("codeCount")
+      field.setAccessible(true)
+      field.set(this, code.length)
+    }
+  }
+}
+
+// IOに依存しないSketchCode
+class SketchCodeAdapter(file: File)
+    extends SketchCode(
+      file,
+      file.lowerExtension.getOrElse("")
+    ) {
+  override def load() = {}
+
+  def setProgram2(program: String) = {
+    val field = classOf[SketchCode].getDeclaredField("program")
+    field.setAccessible(true)
+    field.set(this, program)
   }
 }

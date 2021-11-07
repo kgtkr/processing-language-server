@@ -36,6 +36,8 @@ import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.DiagnosticSeverity
+import java.net.URI
+import org.eclipse.lsp4j.TextDocumentSyncOptions
 
 class ProcessingLanguageServer
     extends LanguageServer
@@ -55,7 +57,7 @@ class ProcessingLanguageServer
       params: InitializeParams
   ): CompletableFuture[InitializeResult] = {
     this.adapter = ProcessingAdapter(
-      params.getRootPath,
+      File(params.getRootPath),
       client
     )
     this.textDocumentService.adapter = this.adapter
@@ -64,7 +66,6 @@ class ProcessingLanguageServer
     logger.info("initialize")
     val capabilities = new ServerCapabilities();
     capabilities.setTextDocumentSync(TextDocumentSyncKind.Full);
-
     val completionOptions = new CompletionOptions();
     completionOptions.setResolveProvider(true);
     completionOptions.setTriggerCharacters(
