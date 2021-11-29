@@ -34,22 +34,17 @@ import org.jsoup.Jsoup
 import org.eclipse.lsp4j.InsertTextFormat
 import java.net.URI
 
-class ProcessingTextDocumentService
+class ProcessingTextDocumentService(val pls: ProcessingLanguageServer)
     extends TextDocumentService
     with LazyLogging {
-  var adapter: ProcessingAdapter = null;
-
   override def didChange(
       params: DidChangeTextDocumentParams
   ): Unit = {
     logger.info("didChange")
-    val change = params.getContentChanges.get(0)
-    val code = adapter
-      .findCodeByUri(URI(params.getTextDocument.getUri))
-
-    code.foreach { code =>
-      code.setProgram(change.getText)
-      adapter.notifySketchChanged();
+    val uri = URI(params.getTextDocument.getUri)
+    pls.getAdapter(uri).foreach { adapter =>
+      val change = params.getContentChanges.get(0)
+      adapter.onChange(uri, change.getText)
     }
   }
   override def didClose(
@@ -60,7 +55,10 @@ class ProcessingTextDocumentService
   override def didOpen(
       params: DidOpenTextDocumentParams
   ): Unit = {
-    logger.info("didOpen")
+    val uri = URI(params.getTextDocument.getUri)
+    pls.getAdapter(uri).foreach { adapter =>
+      adapter.onChange(uri, params.getTextDocument.getText)
+    }
   }
   override def didSave(
       params: DidSaveTextDocumentParams
@@ -72,13 +70,25 @@ class ProcessingTextDocumentService
       params: CompletionParams
   ): CompletableFuture[LspEither[JList[CompletionItem], CompletionList]] = {
     logger.debug("completion")
-    adapter
-      .generateCompletion(
-        URI(params.getTextDocument.getUri),
-        params.getPosition.getLine,
-        params.getPosition.getCharacter
+    val uri = URI(params.getTextDocument.getUri)
+    pls
+      .getAdapter(uri)
+      .map[CompletableFuture[LspEither[JList[CompletionItem], CompletionList]]](
+        adapter =>
+          adapter
+            .generateCompletion(
+              uri,
+              params.getPosition.getLine,
+              params.getPosition.getCharacter
+            )
+            .thenApply(LspEither.forLeft)
       )
-      .thenApply(LspEither.forLeft)
+      .getOrElse(
+        CompletableFutures
+          .computeAsync[LspEither[JList[CompletionItem], CompletionList]](_ =>
+            LspEither.forLeft(Collections.emptyList())
+          )
+      )
   }
 
   override def resolveCompletionItem(
@@ -92,27 +102,19 @@ class ProcessingTextDocumentService
   override def formatting(
       params: DocumentFormattingParams
   ): CompletableFuture[JList[? <: TextEdit]] = {
-    CompletableFutures.computeAsync(checker => {
-      val code =
-        adapter
-          .findCodeByUri(URI(params.getTextDocument.getUri))
-          .map(_.getProgram)
-      code
-        .map(code => {
-          val newCode = AutoFormat().format(code)
-          val end = ProcessingAdapter
-            .toLineCol(code, code.length)
-          JList.of(
-            TextEdit(
-              Range(
-                Position(0, 0),
-                Position(end._1, end._2)
-              ),
-              newCode
-            )
-          )
+    val uri = URI(params.getTextDocument.getUri)
+    pls
+      .getAdapter(uri)
+      .map(adapter =>
+        CompletableFutures.computeAsync[JList[? <: TextEdit]](_ => {
+          adapter
+            .format(uri)
+            .map(JList.of)
+            .getOrElse(JList.of())
         })
-        .getOrElse(JList.of())
-    });
+      )
+      .getOrElse(
+        CompletableFuture.completedFuture[JList[? <: TextEdit]](JList.of())
+      )
   }
 }

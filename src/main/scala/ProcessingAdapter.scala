@@ -47,6 +47,8 @@ import org.jsoup.Jsoup
 import java.net.URI
 import processing.app.SketchCode
 import scala.util.Try
+import org.eclipse.lsp4j.TextEdit
+import processing.mode.java.AutoFormat
 
 extension (file: File)
   def lowerExtension: Option[String] = {
@@ -70,16 +72,18 @@ object ProcessingAdapter {
     val col = offset - s.substring(0, offset).lastIndexOf('\n')
     (line, col)
   }
+
+  def init() = {
+    Base.setCommandLine();
+    Platform.init();
+    Preferences.init();
+  }
 }
 
 class ProcessingAdapter(
     rootPath: File,
     client: LanguageClient
 ) extends LazyLogging {
-  Base.setCommandLine();
-  Platform.init();
-  Preferences.init();
-
   val javaMode = ModeContribution
     .load(
       null,
@@ -102,18 +106,6 @@ class ProcessingAdapter(
   val suggestionGenerator =
     CompletionGenerator(javaMode)
   notifySketchChanged();
-
-  def workspaceIncludeUri(uri: URI): Boolean = {
-    ProcessingAdapter
-      .uriToPath(uri)
-      .map(file =>
-        file.getParentFile == rootPath && {
-          val ext = file.lowerExtension.getOrElse("")
-          ext == "pde" || ext == "java"
-        }
-      )
-      .getOrElse(false)
-  }
 
   def notifySketchChanged() = {
     val cps = CompletableFuture[PreprocSketch]
@@ -301,5 +293,35 @@ class ProcessingAdapter(
 
       result.getOrElse(JList.of())
     })
+  }
+
+  def onChange(uri: URI, text: String): Unit = {
+    val code = this
+      .findCodeByUri(uri)
+
+    code.foreach { code =>
+      code.setProgram(text)
+      this.notifySketchChanged();
+    }
+  }
+
+  def format(uri: URI): Option[TextEdit] = {
+    val code =
+      this
+        .findCodeByUri(uri)
+        .map(_.getProgram)
+    code
+      .map(code => {
+        val newCode = AutoFormat().format(code)
+        val end = ProcessingAdapter
+          .toLineCol(code, code.length)
+        TextEdit(
+          Range(
+            Position(0, 0),
+            Position(end._1, end._2)
+          ),
+          newCode
+        )
+      })
   }
 }

@@ -8,9 +8,9 @@ import org.eclipse.lsp4j.DidChangeWatchedFilesParams
 import org.eclipse.lsp4j.FileChangeType
 import java.net.URI
 
-class ProcessingWorkspaceService extends WorkspaceService with LazyLogging {
-  var adapter: ProcessingAdapter = null;
-
+class ProcessingWorkspaceService(val pls: ProcessingLanguageServer)
+    extends WorkspaceService
+    with LazyLogging {
   override def didChangeConfiguration(
       params: DidChangeConfigurationParams
   ): Unit = {}
@@ -20,7 +20,7 @@ class ProcessingWorkspaceService extends WorkspaceService with LazyLogging {
     logger.info("didChangeWatchedFiles: " + params)
     for (change <- params.getChanges.asScala) {
       val uri = URI(change.getUri)
-      if (adapter.workspaceIncludeUri(uri)) {
+      pls.getAdapter(uri).foreach { adapter =>
         change.getType match {
           case FileChangeType.Created =>
             ProcessingAdapter
@@ -38,14 +38,14 @@ class ProcessingWorkspaceService extends WorkspaceService with LazyLogging {
             adapter
               .findCodeByUri(uri)
               .foreach { code =>
-                code.load()
+                code.load();
                 adapter.notifySketchChanged();
               }
           case FileChangeType.Deleted =>
             adapter
               .findCodeByUri(uri)
               .foreach { code =>
-                adapter.sketch.removeCode(code)
+                adapter.sketch.removeCode(code);
                 adapter.notifySketchChanged();
               }
         }
