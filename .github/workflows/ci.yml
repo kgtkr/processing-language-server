@@ -50,6 +50,11 @@ jobs:
           mkdir bin
           VERSION=${{ matrix.processing_version.version_prefix }}-$(git show -s --format='%cd' --date=format:'%Y%m%d%H%M%S' HEAD)-${{ github.sha }}
           cp target/scala-3.1.0/processing-language-server-assembly-0.1.0-SNAPSHOT.jar bin/$VERSION.jar
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: processing-language-server
+          path: bin/*.jar
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
