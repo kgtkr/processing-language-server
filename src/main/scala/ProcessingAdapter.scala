@@ -271,7 +271,9 @@ class ProcessingAdapter(
       val result =
         for {
           code <- this.findCodeByUri(uri)
-          codeIndex = sketch.getCodeIndex(code)
+          codeIndex = (0 until sketch.getCodeCount()).find(
+            i => sketch.getCode(i) == code
+          ).get
           lineStartOffset = code.getProgram
             .split("\n")
             .take(line + 1)
