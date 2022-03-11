@@ -1,8 +1,6 @@
 name: ci
 
 on: [push]
-permissions:
-  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -67,12 +65,10 @@ jobs:
         with:
           name: processing-language-server
           path: bin/
-      - name: Create release name
-        run: |
-          echo RELEASE_NAME=$(git show -s --format='%cd' --date=format:'%Y%m%d%H%M%S' HEAD)-${{ github.sha }} >> $GITHUB_ENV
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          name: ${{ env.RELEASE_NAME }}
-          files: bin/*.jar
-
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./bin
+          publish_branch: bin
+          keep_files: true
