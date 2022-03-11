@@ -1,0 +1,53 @@
+--- cache/processing-src/processing-1276-4.0b1/java/src/processing/mode/java/ErrorChecker.java	2021-08-09 19:53:29.000000000 +0900
++++ src/main/java/processing/mode/java/ErrorChecker2.java	2022-03-11 02:28:56.000000000 +0900
+@@ -28,7 +28,7 @@ import processing.app.Language;
+ import processing.app.Problem;
+ 
+ 
+-class ErrorChecker {
++public class ErrorChecker2 {
+   // Delay delivering error check result after last sketch change #2677
+   private final static long DELAY_BEFORE_UPDATE = 650;
+ 
+@@ -39,11 +39,11 @@ class ErrorChecker {
+ 
+   private final Consumer<PreprocSketch> errorHandlerListener = this::handleSketchProblems;
+ 
+-  final private JavaEditor editor;
+-  final private PreprocService pps;
++  final private Consumer<List<Problem>> editor;
++  final private PreprocService2 pps;
+ 
+ 
+-  public ErrorChecker(JavaEditor editor, PreprocService pps) {
++  public ErrorChecker2(Consumer<List<Problem>> editor, PreprocService2 pps) {
+     this.editor = editor;
+     this.pps = pps;
+     scheduler = Executors.newSingleThreadScheduledExecutor();
+@@ -66,7 +66,7 @@ class ErrorChecker {
+         pps.registerListener(errorHandlerListener);
+       } else {
+         pps.unregisterListener(errorHandlerListener);
+-        editor.setProblemList(Collections.emptyList());
++        editor.accept(Collections.emptyList());
+         nextUiUpdate = 0;
+       }
+     }
+@@ -139,7 +139,7 @@ class ErrorChecker {
+     long delay = nextUiUpdate - System.currentTimeMillis();
+     Runnable uiUpdater = () -> {
+       if (nextUiUpdate > 0 && System.currentTimeMillis() >= nextUiUpdate) {
+-        EventQueue.invokeLater(() -> editor.setProblemList(problems));
++        EventQueue.invokeLater(() -> editor.accept(problems));
+       }
+     };
+     scheduledUiUpdate =
+@@ -309,7 +309,7 @@ class ErrorChecker {
+     int problemTabIndex = problems.get(0).getTabIndex();
+ 
+     IProblem missingBraceProblem = Arrays.stream(ps.compilationUnit.getProblems())
+-        .filter(ErrorChecker::isMissingBraceProblem)
++        .filter(ErrorChecker2::isMissingBraceProblem)
+         // Ignore if it is at the end of file
+         .filter(p -> p.getSourceEnd() + 1 < ps.javaCode.length())
+         // Ignore if the tab number does not match our detected tab number

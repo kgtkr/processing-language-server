@@ -14,7 +14,14 @@ resolve_patch () {
     PATCHED_DIR=$(dirname $PATCHED_PATH)
 
     if [ $MODE = "create" ]; then
+        set +e
         diff -up $SRC_PATH $PATCHED_PATH > $PATCH_PATH
+        diff_code=$?
+        if [ $diff_code -ne 0 ] && [ $diff_code -ne 1 ]; then
+            echo "Failed to create patch $PATCH_PATH"
+            exit 1
+        fi
+        set -e
     fi
 
     if [ $MODE = "apply" ]; then
