@@ -48,7 +48,9 @@ jobs:
       - name: Test
         run: |
           export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)
-          cd e2e && npm test
+          cd e2e
+          npm ci
+          npm test
         timeout-minutes: 1
       - name: Pre Deploy
         run: |
