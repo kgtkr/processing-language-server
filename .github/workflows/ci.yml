@@ -45,6 +45,12 @@ jobs:
       - name: Build
         run: |
           sbt assembly
+      - name: Cache e2e/node_modules
+        uses: actions/cache@v2
+        with:
+          path: |
+            e2e/node_modules
+          key: e2e-test-node-modules
       - name: Test
         run: |
           export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)
