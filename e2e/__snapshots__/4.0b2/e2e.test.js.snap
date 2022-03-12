@@ -126,8 +126,8 @@ Object {
       "label": "toString",
     },
     Object {
-      "detail": "wait(long,int) : void - Object",
-      "insertText": "wait($1,$2)",
+      "detail": "wait(long) : void - Object",
+      "insertText": "wait($1)",
       "insertTextFormat": 2,
       "kind": 3,
       "label": "wait",
