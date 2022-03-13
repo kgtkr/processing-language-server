@@ -90,6 +90,7 @@ describe("e2e", () => {
     const port = 32982;
     languageServerProcess = spawn(javaPath, [
       "-Djna.nosys=true",
+      "-Djava.awt.headless=true",
       "-classpath",
       classpath,
       "net.kgtkr.processingLanguageServer.main",
