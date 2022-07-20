@@ -14,7 +14,7 @@ object App extends LazyLogging {
     SLF4JBridgeHandler.install();
 
     val serverSocket = ServerSocket(port)
-    System.out.print("Ready")
+    System.out.println("Ready")
 
     val socket = serverSocket.accept()
 
