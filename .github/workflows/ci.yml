@@ -53,9 +53,9 @@ jobs:
       - name: Coursier cache
         uses: coursier/cache-action@v6
       - name: Install dependenies for windows
-        if: ${{ matrix.os.image_name }} == 'windows-latest'
         run: |
           choco install -y wget unzip diffutils patch
+        if: matrix.os.image_name == 'windows-latest'
       - name: Pre Build
         run: |
           eval "export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)"
