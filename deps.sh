@@ -31,8 +31,12 @@ if [ "$PROCESSING_OS" = "macos" ]; then
 else
     BIN_CACHE_JAR_DIR=$BIN_CACHE_DIR/$TAG
 fi
-cp $BIN_CACHE_JAR_DIR/lib/*.jar $BIN_CACHE_JAR_DIR/core/library/*.jar $BIN_CACHE_JAR_DIR/modes/java/mode/*.jar lib
-
+cp $BIN_CACHE_JAR_DIR/core/library/*.jar $BIN_CACHE_JAR_DIR/modes/java/mode/*.jar lib
+if [ "$PROCESSING_OS" = "macos" ]; then
+    cp $BIN_CACHE_JAR_DIR/*.jar lib
+else
+    cp $BIN_CACHE_JAR_DIR/lib/*.jar lib
+fi
 
 SRC_TGZ_CACHE_DIR=$CACHE_DIR/processing-src-tgz
 mkdir -p $SRC_TGZ_CACHE_DIR
