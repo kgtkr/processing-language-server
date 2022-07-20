@@ -10,29 +10,39 @@ import java.net.ServerSocket
 import java.io.{InputStream, OutputStream}
 
 object App extends LazyLogging {
-  @main def mainWithTcp(port: Int): Unit = {
-    start({
-      val serverSocket = ServerSocket(port)
-      System.out.println("Ready")
-      val socket = serverSocket.accept()
-      (socket.getInputStream, socket.getOutputStream)
-    })
-  }
-
-  @main def mainWithStdio(): Unit = {
-    start({
+  def protocolStdio(): (InputStream, OutputStream) = {
       val input = System.in
       val output = System.out
       System.setOut(System.err)
       (input, output)
-    })
   }
 
-  def start(io: => (InputStream, OutputStream)): Unit = {
+  def protocolTcp(port: Int): (InputStream, OutputStream) = {
+      val serverSocket = ServerSocket(port.toInt)
+      System.out.println("Ready")
+      val socket = serverSocket.accept()
+      (socket.getInputStream, socket.getOutputStream)
+  }
+
+  @main def main(args: String*): Unit = {
     SLF4JBridgeHandler.removeHandlersForRootLogger();
     SLF4JBridgeHandler.install();
 
-    val (input, output) = io
+    val (input, output) = args match {
+      case Seq("stdio") => {
+        protocolStdio()
+      }
+      case Seq("tcp", port) => {
+        protocolTcp(port.toInt)
+      }
+      case Seq(port) => {
+        protocolTcp(port.toInt)
+      }
+      case _ => {
+        System.err.println("Invalid arguments")
+        System.exit(1)
+      }
+    }
 
     val server = ProcessingLanguageServer();
     val launcher =

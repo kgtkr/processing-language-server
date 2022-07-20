@@ -188,7 +188,10 @@ describe("e2e", () => {
     const javaArgs = [...javaArgsBase];
     const port = 32982;
     if (protocol === "tcp") {
-      javaArgs.push(String(port));
+      javaArgs.push("tcp", String(port));
+    }
+    if (protocol === "stdio") {
+      javaArgs.push("stdio");
     }
     languageServerProcess = spawn(javaPath, javaArgs);
     languageServerProcess.stderr.on("data", (data) => {
