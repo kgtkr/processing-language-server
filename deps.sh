@@ -1,23 +1,34 @@
 #!/bin/sh -eu
 CACHE_DIR=cache
 
-BIN_TGZ_CACHE_DIR=$CACHE_DIR/processing-tgz
-mkdir -p $BIN_TGZ_CACHE_DIR
-if [ ! -e $BIN_TGZ_CACHE_DIR/$TAG ]; then
+BIN_ARC_CACHE_DIR=$CACHE_DIR/processing-arc
+mkdir -p $BIN_ARC_CACHE_DIR
+if [ ! -e $BIN_ARC_CACHE_DIR/$TAG ]; then
     BIN_URL=https://github.com/processing/$REPO/releases/download/$TAG/$ASSET_NAME
-    wget $BIN_URL -O $BIN_TGZ_CACHE_DIR/$TAG
+    wget $BIN_URL -O $BIN_ARC_CACHE_DIR/$TAG
 fi
 
 BIN_CACHE_DIR=$CACHE_DIR/processing
 mkdir -p $BIN_CACHE_DIR
 if [ ! -e $BIN_CACHE_DIR/$TAG ]; then
-    tar -xzf $BIN_TGZ_CACHE_DIR/$TAG -C $BIN_CACHE_DIR
+    if [ "$PROCESSING_ARC" = "zip" ]; then
+        unzip $BIN_ARC_CACHE_DIR/$TAG -C $BIN_CACHE_DIR
+    fi
+    if [ "$PROCESSING_ARC" = "tgz" ]; then
+        tar -xzf $BIN_ARC_CACHE_DIR/$TAG -C $BIN_CACHE_DIR
+    fi
     mv $BIN_CACHE_DIR/processing-$VERSION $BIN_CACHE_DIR/$TAG
 fi
 
 rm -rf lib
 mkdir lib
-cp $BIN_CACHE_DIR/$TAG/lib/*.jar $BIN_CACHE_DIR/$TAG/core/library/*.jar $BIN_CACHE_DIR/$TAG/modes/java/mode/*.jar lib
+if [ "$PROCESSING_OS" = "macos" ]; then
+    BIN_CACHE_JAR_DIR=$BIN_CACHE_DIR/Processing.App/Contents/Java
+else
+    BIN_CACHE_JAR_DIR=$BIN_CACHE_DIR/$TAG
+fi
+cp $BIN_CACHE_JAR_DIR/lib/*.jar $BIN_CACHE_JAR_DIR/core/library/*.jar $BIN_CACHE_JAR_DIR/modes/java/mode/*.jar lib
+
 
 SRC_TGZ_CACHE_DIR=$CACHE_DIR/processing-src-tgz
 mkdir -p $SRC_TGZ_CACHE_DIR

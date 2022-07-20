@@ -10,12 +10,15 @@ jobs:
           - image_name: ubuntu-latest
             processing_os: linux
             processing_arch: x64
+            processing_arc: tgz
           - image_name: windows-latest
             processing_os: windows
             processing_arch: x64
+            processing_arc: zip
           - image_name: macos-latest
             processing_os: macos
             processing_arch: x64
+            processing_arc: zip
         processing_version:
           - java_version: "11"
             version_prefix: "4.0b4"
@@ -31,6 +34,7 @@ jobs:
     env:
       PROCESSING_OS: ${{ matrix.os.processing_os }}
       PROCESSING_ARCH: ${{ matrix.os.processing_arch }}
+      PROCESSING_ARC: ${{ matrix.os.processing_arc }}
     steps:
       - uses: actions/checkout@v2
       - name: Setup JDK
