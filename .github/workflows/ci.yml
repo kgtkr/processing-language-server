@@ -44,6 +44,7 @@ jobs:
       - name: Pre Build
         run: |
           export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)
+          export $(cat .env | xargs)
           ./deps.sh
           ./patch.sh apply
       - name: Build
@@ -60,6 +61,7 @@ jobs:
       - name: Test
         run: |
           export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)
+          export $(cat .env | xargs)
           cd e2e
           npm ci
           npm test
