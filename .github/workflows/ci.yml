@@ -43,8 +43,8 @@ jobs:
         uses: coursier/cache-action@v6
       - name: Pre Build
         run: |
-          eval "export $(cat env/${{ matrix.processing_version.version_prefix }}.env)"
-          eval "export $(cat .env)"
+          eval "export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)"
+          eval "export $(cat .env | xargs)"
           ./deps.sh
           ./patch.sh apply
       - name: Build
@@ -60,8 +60,8 @@ jobs:
             e2e-test-node-modules-20220720-1-
       - name: Test
         run: |
-          export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)
-          export $(cat .env | xargs)
+          eval "export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)"
+          eval "export $(cat .env | xargs)"
           cd e2e
           npm ci
           npm test
