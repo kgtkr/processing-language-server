@@ -1,5 +1,3 @@
-import java.io.File
-
 val scala3Version = "3.1.0"
 
 lazy val root = project
@@ -22,7 +20,7 @@ lazy val root = project
     assembly / mainClass := Some("net.kgtkr.processingLanguageServer.main"),
     assembly / assemblyExcludedJars := {
       val cp = (assembly / fullClasspath).value
-      val base = (assembly / baseDirectory).value.getAbsolutePath
-      cp.filter(jar => jar.data.getAbsolutePath.startsWith(base + File.separator + "lib" + File.separator))
+      val base = (assembly / baseDirectory).value.toPath
+      cp.filter(jar => jar.data.toPath.startsWith(base.resolve("lib")))
     }
   )
