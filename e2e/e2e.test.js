@@ -532,6 +532,7 @@ describe("e2e", () => {
       });
 
       expect(convertResult(await queue.pop())).toMatchSnapshot();
+      conn.end();
     },
     10000
   );
