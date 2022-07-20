@@ -59,7 +59,7 @@ describe("e2e", () => {
     });
   }
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const processingPath = path.join(
       __dirname,
       "../cache/processing",
