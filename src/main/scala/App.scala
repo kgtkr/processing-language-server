@@ -7,23 +7,39 @@ import com.typesafe.scalalogging.Logger
 import com.typesafe.scalalogging.LazyLogging
 import java.io.File
 import java.net.ServerSocket
+import java.io.{InputStream, OutputStream}
 
 object App extends LazyLogging {
-  @main def main(port: Int): Unit = {
+  @main def mainWithTcp(port: Int): Unit = {
+    start({
+      val serverSocket = ServerSocket(port)
+      System.out.println("Ready")
+      val socket = serverSocket.accept()
+      (socket.getInputStream, socket.getOutputStream)
+    })
+  }
+
+  @main def mainWithStdio(): Unit = {
+    start({
+      val input = System.in
+      val output = System.out
+      System.setOut(System.err)
+      (input, output)
+    })
+  }
+
+  def start(io: => (InputStream, OutputStream)): Unit = {
     SLF4JBridgeHandler.removeHandlersForRootLogger();
     SLF4JBridgeHandler.install();
 
-    val serverSocket = ServerSocket(port)
-    System.out.println("Ready")
-
-    val socket = serverSocket.accept()
+    val (input, output) = io
 
     val server = ProcessingLanguageServer();
     val launcher =
       LSPLauncher.createServerLauncher(
         server,
-        socket.getInputStream,
-        socket.getOutputStream
+        input,
+        output
       );
     val client = launcher.getRemoteProxy();
     server.connect(client);
