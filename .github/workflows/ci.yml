@@ -8,20 +8,22 @@ jobs:
       fail-fast: false
       matrix:
         processing_version:
-          - java_version: '11'
-            version_prefix: '4.0b2'
-          - java_version: '11'
-            version_prefix: '4.0b1'
-          - java_version: '11'
-            version_prefix: '4.0b3'
-          - java_version: '11'
-            version_prefix: '4.0b4'
-          - java_version: '11'
-            version_prefix: '4.0b5'
-          - java_version: '11'
-            version_prefix: '4.0b6'
-          - java_version: '11'
-            version_prefix: '4.0b7'
+          - java_version: "11"
+            version_prefix: "4.0b2"
+          - java_version: "11"
+            version_prefix: "4.0b1"
+          - java_version: "11"
+            version_prefix: "4.0b3"
+          - java_version: "11"
+            version_prefix: "4.0b4"
+          - java_version: "11"
+            version_prefix: "4.0b5"
+          - java_version: "11"
+            version_prefix: "4.0b6"
+          - java_version: "11"
+            version_prefix: "4.0b7"
+          - java_version: "11"
+            version_prefix: "4.0b8"
     steps:
       - uses: actions/checkout@v2
       - name: Setup JDK
