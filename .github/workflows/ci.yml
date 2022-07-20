@@ -9,12 +9,6 @@ jobs:
       matrix:
         processing_version:
           - java_version: "11"
-            version_prefix: "4.0b2"
-          - java_version: "11"
-            version_prefix: "4.0b1"
-          - java_version: "11"
-            version_prefix: "4.0b3"
-          - java_version: "11"
             version_prefix: "4.0b4"
           - java_version: "11"
             version_prefix: "4.0b5"
