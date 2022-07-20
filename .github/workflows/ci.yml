@@ -36,7 +36,9 @@ jobs:
         with:
           path: |
             cache
-          key: cache
+          key: cache-20220720-1-${{ github.sha }}
+          restore-keys: |
+            cache-20220720-1-
       - name: Coursier cache
         uses: coursier/cache-action@v6
       - name: Pre Build
@@ -52,7 +54,9 @@ jobs:
         with:
           path: |
             e2e/node_modules
-          key: e2e-test-node-modules
+          key: e2e-test-node-modules-20220720-1-${{ github.sha }}
+          restore-keys: |
+            e2e-test-node-modules-20220720-1-
       - name: Test
         run: |
           export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)
