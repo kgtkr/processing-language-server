@@ -55,37 +55,59 @@ describe("e2e", () => {
   }
 
   beforeEach(async () => {
-    const processingRoot = path.join(
+    const processingPath = path.join(
       __dirname,
       "../cache/processing",
       process.env["TAG"]
     );
 
-    const languageServerJar = path.join(
+    const languageServerPath = path.join(
       __dirname,
       "../target/scala-3.1.0/processing-language-server-assembly-0.1.0-SNAPSHOT.jar"
     );
 
-    // macでもローカルテストできるように
-    const javaPath =
-      process.platform === "darwin"
-        ? "java"
-        : path.join(processingRoot, "java/bin/java");
-
     let classpath = "";
 
-    for (const dir of ["lib", "core/library", "modes/java/mode"]) {
-      const absDir = path.join(processingRoot, dir);
+    const addJars = async (dir) => {
+      const classPathSeparator =
+        process.env["PROCESSING_OS"] === "windows" ? ";" : ":";
+      const absDir = path.join(processingPath, dir);
       const names = await fs.readdir(absDir);
       const jars = names
         .filter((name) => name.endsWith(".jar"))
         .map((name) => path.join(absDir, name));
       for (const jar of jars) {
-        classpath += jar + ":";
+        classpath += jar + classPathSeparator;
       }
+    };
+
+    if (process.env["PROCESSING_OS"] === "macos") {
+      await addJars(path.join("Contents", "Java"));
+      await addJars(path.join("Contents", "Java", "core", "library"));
+      await addJars(path.join("Contents", "Java", "modes", "java", "mode"));
+    } else {
+      await addJars("lib");
+      await addJars(path.join("core", "library"));
+      await addJars(path.join("modes", "java", "mode"));
     }
 
-    classpath += languageServerJar;
+    classpath += languageServerPath;
+
+    const javaPath = await (async () => {
+      switch (process.env["PROCESSING_OS"]) {
+        case "windows":
+          return path.join(processingPath, "java", "bin", "java.exe");
+        case "linux":
+          return path.join(processingPath, "java", "bin", "java");
+        case "macos":
+          const path1 = path.join(processingPath, "Contents", "PlugIns");
+          const path2 = (await fs.readdir(path1))[0];
+          const path3 = path.join("Contents", "Home", "bin", "java");
+          return path.join(path1, path2, path3);
+        default:
+          throw new Error("Unsupported platform");
+      }
+    })();
 
     const port = 32982;
     languageServerProcess = spawn(javaPath, [
