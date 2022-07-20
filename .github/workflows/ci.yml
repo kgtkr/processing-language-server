@@ -90,7 +90,6 @@ jobs:
           npm ci
           npm test
         shell: bash
-        timeout-minutes: 1
       - name: Pre Deploy
         run: |
           mkdir bin
