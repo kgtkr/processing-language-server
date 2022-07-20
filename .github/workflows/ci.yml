@@ -80,14 +80,18 @@ jobs:
           key: e2e-test-node-modules-${{ matrix.os.image_name }}-20220720-1-${{ hashFile('e2e/package-lock.json') }}
           restore-keys: |
             e2e-test-node-modules-${{ matrix.os.image_name }}-20220720-1-
+      - name: e2e npm ci
+        run: |
+          cd e2e
+          npm ci
       - name: Test
         run: |
           eval "export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)"
           eval "export $(cat .env | xargs)"
           cd e2e
-          npm ci
           npm test
         shell: bash
+        timeout-minutes: 1
       - name: Pre Deploy
         run: |
           mkdir bin
