@@ -133,15 +133,19 @@ describe("e2e", () => {
       })
     );
 
-    conn = net.connect({ port });
+    await new Promise((resolve) => {
+      conn = net.connect({ port }, () => {
+        resolve();
+      });
 
-    conn.on("data", (chunk) => {
-      const content = chunk.toString();
-      for (const line of content.split("\r\n")) {
-        if (line.length !== 0 && !line.startsWith("Content-Length: ")) {
-          queue.push(JSON.parse(line));
+      conn.on("data", (chunk) => {
+        const content = chunk.toString();
+        for (const line of content.split("\r\n")) {
+          if (line.length !== 0 && !line.startsWith("Content-Length: ")) {
+            queue.push(JSON.parse(line));
+          }
         }
-      }
+      });
     });
   });
 
