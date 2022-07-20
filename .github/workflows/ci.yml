@@ -52,6 +52,14 @@ jobs:
             cache-${{ matrix.os.image_name }}-20220720-1-
       - name: Coursier cache
         uses: coursier/cache-action@v6
+      - name: Cache Chocolatey
+        uses: actions/cache@v1
+        with:
+          path: C:\ProgramData\chocolatey\lib
+          key: chocolatey-${{ matrix.os.image_name }}-20220720-1-${{ github.sha }}
+          restore-keys: |
+            chocolatey-${{ matrix.os.image_name }}-20220720-1-
+        if: matrix.os.image_name == 'windows-latest'
       - name: Install dependenies for windows
         run: |
           choco install -y wget unzip diffutils patch
