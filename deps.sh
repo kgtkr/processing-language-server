@@ -12,7 +12,7 @@ BIN_CACHE_DIR=$CACHE_DIR/processing
 mkdir -p $BIN_CACHE_DIR
 if [ ! -e $BIN_CACHE_DIR/$TAG ]; then
     if [ "$PROCESSING_ARC" = "zip" ]; then
-        unzip $BIN_ARC_CACHE_DIR/$TAG -C $BIN_CACHE_DIR
+        unzip -d $BIN_CACHE_DIR $BIN_ARC_CACHE_DIR/$TAG
     fi
     if [ "$PROCESSING_ARC" = "tgz" ]; then
         tar -xzf $BIN_ARC_CACHE_DIR/$TAG -C $BIN_CACHE_DIR
