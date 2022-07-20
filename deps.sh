@@ -27,7 +27,7 @@ fi
 rm -rf lib
 mkdir lib
 if [ "$PROCESSING_OS" = "macos" ]; then
-    BIN_CACHE_JAR_DIR=$BIN_CACHE_DIR/Contents/Java
+    BIN_CACHE_JAR_DIR=$BIN_CACHE_DIR/$TAG/Contents/Java
 else
     BIN_CACHE_JAR_DIR=$BIN_CACHE_DIR/$TAG
 fi
