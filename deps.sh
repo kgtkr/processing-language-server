@@ -17,13 +17,17 @@ if [ ! -e $BIN_CACHE_DIR/$TAG ]; then
     if [ "$PROCESSING_ARC" = "tgz" ]; then
         tar -xzf $BIN_ARC_CACHE_DIR/$TAG -C $BIN_CACHE_DIR
     fi
-    mv $BIN_CACHE_DIR/processing-$VERSION $BIN_CACHE_DIR/$TAG
+    if [ "$PROCESSING_OS" = "macos" ]; then
+        mv $BIN_CACHE_DIR/processing-$VERSION $BIN_CACHE_DIR/$TAG
+    else
+        mv $BIN_CACHE_DIR/Processing.app $BIN_CACHE_DIR/$TAG
+    fi
 fi
 
 rm -rf lib
 mkdir lib
 if [ "$PROCESSING_OS" = "macos" ]; then
-    BIN_CACHE_JAR_DIR=$BIN_CACHE_DIR/Processing.App/Contents/Java
+    BIN_CACHE_JAR_DIR=$BIN_CACHE_DIR/Contents/Java
 else
     BIN_CACHE_JAR_DIR=$BIN_CACHE_DIR/$TAG
 fi
