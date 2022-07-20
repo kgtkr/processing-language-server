@@ -14,7 +14,8 @@ module.exports = {
     console.log(snapshotFilePath, snapshotExtension);
     return path.join(
       path.dirname(snapshotFilePath),
-      "../../",
+      "..",
+      "..",
       path.basename(snapshotFilePath, snapshotExtension)
     );
   },
