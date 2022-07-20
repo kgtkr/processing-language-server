@@ -54,7 +54,7 @@ jobs:
         uses: actions/cache@v1
         with:
           path: C:\ProgramData\chocolatey\lib
-          key: chocolatey-${{ matrix.os.image_name }}-20220720-1-${{ hashFile('package-for-win.config') }}
+          key: chocolatey-${{ matrix.os.image_name }}-20220720-1-${{ hashFiles('package-for-win.config') }}
           restore-keys: |
             chocolatey-${{ matrix.os.image_name }}-20220720-1-
         if: matrix.os.image_name == 'windows-latest'
@@ -77,7 +77,7 @@ jobs:
         with:
           path: |
             e2e/node_modules
-          key: e2e-test-node-modules-${{ matrix.os.image_name }}-20220720-1-${{ hashFile('e2e/package-lock.json') }}
+          key: e2e-test-node-modules-${{ matrix.os.image_name }}-20220720-1-${{ hashFiles('e2e/package-lock.json') }}
           restore-keys: |
             e2e-test-node-modules-${{ matrix.os.image_name }}-20220720-1-
       - name: e2e npm ci
