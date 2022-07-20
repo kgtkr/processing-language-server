@@ -152,6 +152,9 @@ describe("e2e", () => {
         }
       });
     });
+    conn.on("error", (err) => {
+      console.error(err);
+    });
   });
 
   afterAll(() => {
@@ -532,7 +535,6 @@ describe("e2e", () => {
       });
 
       expect(convertResult(await queue.pop())).toMatchSnapshot();
-      conn.end();
     },
     10000
   );
