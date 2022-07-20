@@ -2,6 +2,7 @@ const path = require("path");
 const fs = require("fs/promises");
 const { spawn } = require("child_process");
 const net = require("net");
+const url = require("url");
 
 class Queue {
   constructor() {
@@ -44,10 +45,14 @@ describe("e2e", () => {
     return value;
   }
 
+  function pathToFileURL(path) {
+    return url.pathToFileURL(path).href.replace("://", ":");
+  }
+
   function convertResult(value) {
     return visitJSON(value, (x) => {
       if (typeof x === "string") {
-        return x.replace(testProjectRoot, "<testProjectRoot>");
+        return x.replace(pathToFileURL(testProjectRoot), "<testProjectRoot>");
       } else {
         return x;
       }
@@ -176,7 +181,7 @@ describe("e2e", () => {
           clientInfo: { name: "Visual Studio Code", version: "1.65.1" },
           locale: "ja",
           rootPath: testProjectRoot,
-          rootUri: "file:" + testProjectRoot,
+          rootUri: pathToFileURL(testProjectRoot),
           capabilities: {
             workspace: {
               applyEdit: true,
@@ -387,7 +392,7 @@ describe("e2e", () => {
           trace: "off",
           workspaceFolders: [
             {
-              uri: "file:" + testProjectRoot,
+              uri: pathToFileURL(testProjectRoot),
               name: "PdeTest",
             },
           ],
@@ -402,7 +407,7 @@ describe("e2e", () => {
         method: "textDocument/didOpen",
         params: {
           textDocument: {
-            uri: "file:" + testProjectRoot + "/PdeTest.pde",
+            uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
             languageId: "processing",
             version: 1,
             text: "class Hoge {\n  void f(int x) {}\n}\n\nvoid main() {\nHoge hoge = new Hoge();\nhoge\n}\n",
@@ -417,7 +422,7 @@ describe("e2e", () => {
         method: "textDocument/didChange",
         params: {
           textDocument: {
-            uri: "file:" + testProjectRoot + "/PdeTest.pde",
+            uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
             version: 2,
           },
           contentChanges: [
@@ -436,7 +441,7 @@ describe("e2e", () => {
         method: "textDocument/completion",
         params: {
           textDocument: {
-            uri: "file:" + testProjectRoot + "/PdeTest.pde",
+            uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
           },
           position: { line: 6, character: 5 },
           context: { triggerKind: 2, triggerCharacter: "." },
@@ -465,7 +470,7 @@ describe("e2e", () => {
         method: "textDocument/didChange",
         params: {
           textDocument: {
-            uri: "file:" + testProjectRoot + "/PdeTest.pde",
+            uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
             version: 3,
           },
           contentChanges: [
@@ -483,7 +488,7 @@ describe("e2e", () => {
         method: "textDocument/didChange",
         params: {
           textDocument: {
-            uri: "file:" + testProjectRoot + "/PdeTest.pde",
+            uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
             version: 4,
           },
           contentChanges: [
@@ -502,7 +507,7 @@ describe("e2e", () => {
         method: "textDocument/formatting",
         params: {
           textDocument: {
-            uri: "file:" + testProjectRoot + "/PdeTest.pde",
+            uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
           },
           options: { tabSize: 2, insertSpaces: true, insertFinalNewline: true },
         },
@@ -515,7 +520,7 @@ describe("e2e", () => {
         method: "textDocument/didChange",
         params: {
           textDocument: {
-            uri: "file:" + testProjectRoot + "/PdeTest.pde",
+            uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
             version: 5,
           },
           contentChanges: [
