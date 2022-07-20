@@ -36,31 +36,43 @@ import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.DiagnosticSeverity
+import scala.collection.mutable.Map as MMap
+import java.net.URI
 
 class ProcessingLanguageServer
     extends LanguageServer
     with LazyLogging
     with LanguageClientAware {
-  var adapter: ProcessingAdapter = null;
+  val adapters: MMap[File, ProcessingAdapter] = MMap();
   var client: LanguageClient = null;
-  val textDocumentService = ProcessingTextDocumentService()
-  val workspaceService = ProcessingWorkspaceService()
+  val textDocumentService = ProcessingTextDocumentService(this)
+  val workspaceService = ProcessingWorkspaceService(this)
   override def exit(): Unit = {
     logger.info("exit")
   }
   override def getTextDocumentService(): TextDocumentService =
     textDocumentService
   override def getWorkspaceService(): WorkspaceService = workspaceService
+
+  def getAdapter(uri: URI): Option[ProcessingAdapter] = {
+    for {
+      file <- ProcessingAdapter
+        .uriToPath(uri)
+      if {
+        val ext = file.lowerExtension.getOrElse("")
+        ext == "pde" || ext == "java"
+      }
+      rootDir = file.getParentFile
+    } yield adapters.getOrElseUpdate(
+      rootDir, {
+        ProcessingAdapter(rootDir, client)
+      }
+    )
+  }
   override def initialize(
       params: InitializeParams
   ): CompletableFuture[InitializeResult] = {
-    this.adapter = ProcessingAdapter(
-      File(params.getRootPath),
-      client
-    )
-    this.textDocumentService.adapter = this.adapter
-    this.workspaceService.adapter = this.adapter
-
+    ProcessingAdapter.init();
     logger.info("initialize")
     val capabilities = new ServerCapabilities();
     capabilities.setTextDocumentSync(TextDocumentSyncKind.Full);
