@@ -73,6 +73,9 @@ jobs:
       - name: Build
         run: |
           sbt assembly
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
       - name: Cache e2e/node_modules
         uses: actions/cache@v2
         with:
