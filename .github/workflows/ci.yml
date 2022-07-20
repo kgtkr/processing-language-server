@@ -47,22 +47,20 @@ jobs:
         with:
           path: |
             cache
-          key: cache-${{ matrix.os.image_name }}-20220720-1-${{ github.sha }}
-          restore-keys: |
-            cache-${{ matrix.os.image_name }}-20220720-1-
+          key: cache-${{ matrix.os.image_name }}-20220720-1-${{ matrix.processing_version.version_prefix }}
       - name: Coursier cache
         uses: coursier/cache-action@v6
       - name: Cache Chocolatey
         uses: actions/cache@v1
         with:
           path: C:\ProgramData\chocolatey\lib
-          key: chocolatey-${{ matrix.os.image_name }}-20220720-1-${{ github.sha }}
+          key: chocolatey-${{ matrix.os.image_name }}-20220720-1-${{ hashFile('package-for-win.config') }}
           restore-keys: |
             chocolatey-${{ matrix.os.image_name }}-20220720-1-
         if: matrix.os.image_name == 'windows-latest'
       - name: Install dependenies for windows
         run: |
-          choco install -y wget unzip diffutils patch
+          choco install -y package-for-win.config
         if: matrix.os.image_name == 'windows-latest'
       - name: Pre Build
         run: |
@@ -79,7 +77,7 @@ jobs:
         with:
           path: |
             e2e/node_modules
-          key: e2e-test-node-modules-${{ matrix.os.image_name }}-20220720-1-${{ github.sha }}
+          key: e2e-test-node-modules-${{ matrix.os.image_name }}-20220720-1-${{ hashFile('e2e/package-lock.json') }}
           restore-keys: |
             e2e-test-node-modules-${{ matrix.os.image_name }}-20220720-1-
       - name: Test
