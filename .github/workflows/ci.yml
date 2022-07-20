@@ -43,8 +43,8 @@ jobs:
         uses: coursier/cache-action@v6
       - name: Pre Build
         run: |
-          export $(cat env/${{ matrix.processing_version.version_prefix }}.env | xargs)
-          export $(cat .env | xargs)
+          eval "export $(cat env/${{ matrix.processing_version.version_prefix }}.env)"
+          eval "export $(cat .env)"
           ./deps.sh
           ./patch.sh apply
       - name: Build
