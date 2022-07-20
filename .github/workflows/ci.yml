@@ -54,6 +54,7 @@ jobs:
           eval "export $(cat .env | xargs)"
           ./deps.sh
           ./patch.sh apply
+        shell: bash
       - name: Build
         run: |
           sbt assembly
@@ -72,6 +73,7 @@ jobs:
           cd e2e
           npm ci
           npm test
+        shell: bash
         timeout-minutes: 1
       - name: Pre Deploy
         run: |
