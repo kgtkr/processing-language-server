@@ -1,3 +1,5 @@
+import java.io.File
+
 val scala3Version = "3.1.0"
 
 lazy val root = project
@@ -21,6 +23,6 @@ lazy val root = project
     assembly / assemblyExcludedJars := {
       val cp = (assembly / fullClasspath).value
       val base = (assembly / baseDirectory).value.getAbsolutePath
-      cp.filter(jar => jar.data.getAbsolutePath.startsWith(base + "/lib/"))
+      cp.filter(jar => jar.data.getAbsolutePath.startsWith(base + File.separator + "lib" + File.separator))
     }
   )
