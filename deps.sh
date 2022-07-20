@@ -18,9 +18,9 @@ if [ ! -e $BIN_CACHE_DIR/$TAG ]; then
         tar -xzf $BIN_ARC_CACHE_DIR/$TAG -C $BIN_CACHE_DIR
     fi
     if [ "$PROCESSING_OS" = "macos" ]; then
-        mv $BIN_CACHE_DIR/processing-$VERSION $BIN_CACHE_DIR/$TAG
-    else
         mv $BIN_CACHE_DIR/Processing.app $BIN_CACHE_DIR/$TAG
+    else
+        mv $BIN_CACHE_DIR/processing-$VERSION $BIN_CACHE_DIR/$TAG
     fi
 fi
 
