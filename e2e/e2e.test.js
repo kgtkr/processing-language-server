@@ -4,6 +4,8 @@ const { spawn } = require("child_process");
 const net = require("net");
 const url = require("url");
 
+jest.setTimeout(30000);
+
 class Queue {
   constructor() {
     this.queue = [];
@@ -30,36 +32,89 @@ class Queue {
   }
 }
 
-jest.setTimeout(30000);
+class LSPClient {
+  constructor(input, output) {
+    this.input = input;
+    this.output = output;
+    this.queue = new Queue();
 
-describe("e2e", () => {
-  const testProjectRoot = path.join(__dirname, "PdeTest");
-  let conn;
-  const queue = new Queue();
+    this.output.on("data", (chunk) => {
+      const content = chunk.toString();
+      for (const line of content.split("\r\n")) {
+        if (line.length !== 0 && !line.startsWith("Content-Length: ")) {
+          this.queue.push(JSON.parse(line));
+        }
+      }
+    });
+  }
 
-  function visitJSON(value, f) {
+  async send(json) {
+    const content = JSON.stringify(json);
+    await new Promise((resolve) => {
+      this.input.write(
+        "Content-Length: " + Buffer.from(content).length + "\r\n\r\n" + content,
+        resolve
+      );
+    });
+  }
+
+  async receive() {
+    return await this.queue.pop();
+  }
+
+  destroy() {
+    if (!this.input.destroyed) {
+      this.input.destroy();
+    }
+    if (!this.output.destroyed) {
+      this.output.destroy();
+    }
+  }
+}
+
+class OutputNormalizer {
+  constructor() {
+    this.testProjectRoot = path.join(__dirname, "PdeTest");
+  }
+
+  static visitJSON(value, f) {
     value = f(value);
     if (typeof value === "object" && value !== null) {
       for (const key of Object.keys(value)) {
-        value[key] = visitJSON(value[key], f);
+        value[key] = this.visitJSON(value[key], f);
       }
     }
     return value;
   }
 
-  function pathToFileURL(path) {
+  static pathToFileURL(path) {
     return url.pathToFileURL(path).href.replace("://", ":");
   }
 
-  function convertResult(value) {
-    return visitJSON(value, (x) => {
+  convertResult(value) {
+    return OutputNormalizer.visitJSON(value, (x) => {
       if (typeof x === "string") {
-        return x.replace(pathToFileURL(testProjectRoot), "<testProjectRoot>");
+        return x.replace(
+          OutputNormalizer.pathToFileURL(this.testProjectRoot),
+          "<testProjectRoot>"
+        );
       } else {
         return x;
       }
     });
   }
+
+  getURL(...pathParts) {
+    return OutputNormalizer.pathToFileURL(
+      path.join(this.testProjectRoot, ...pathParts)
+    );
+  }
+}
+
+describe("e2e", () => {
+  let javaPath;
+  let javaArgsBase;
+  let protocol = process.env.E2E_PROTOCOL;
 
   beforeAll(async () => {
     const processingPath = path.join(
@@ -100,7 +155,7 @@ describe("e2e", () => {
 
     classpath += languageServerPath;
 
-    const javaPath = await (async () => {
+    javaPath = await (async () => {
       switch (process.env["PROCESSING_OS"]) {
         case "windows":
           return path.join(processingPath, "java", "bin", "java.exe");
@@ -115,67 +170,73 @@ describe("e2e", () => {
           throw new Error("Unsupported platform");
       }
     })();
-
-    const port = 32982;
-    languageServerProcess = spawn(javaPath, [
+    javaArgsBase = [
       "-Djna.nosys=true",
       "-Djava.awt.headless=true",
       "-classpath",
       classpath,
       "net.kgtkr.processingLanguageServer.main",
-      String(port),
-    ]);
+    ];
+  });
 
+  const outputNormalizer = new OutputNormalizer();
+
+  let lspClient;
+  let languageServerProcess;
+
+  beforeAll(async () => {
+    const javaArgs = [...javaArgsBase];
+    const port = 32982;
+    if (protocol === "tcp") {
+      javaArgs.push("tcp", String(port));
+    }
+    if (protocol === "stdio") {
+      javaArgs.push("stdio");
+    }
+    languageServerProcess = spawn(javaPath, javaArgs);
     languageServerProcess.stderr.on("data", (data) => {
       console.error("[stderr]", data.toString());
     });
 
-    await new Promise((resolve) =>
-      languageServerProcess.stdout.on("data", async (data) => {
-        console.log("[stdout]", data.toString());
+    if (protocol === "tcp") {
+      await new Promise((resolve) =>
+        languageServerProcess.stdout.on("data", async (data) => {
+          console.log("[stdout]", data.toString());
 
-        if (data.toString().includes("Ready")) {
-          resolve();
-        }
-      })
-    );
-
-    await new Promise((resolve) => {
-      conn = net.connect({ port }, () => {
-        resolve();
-      });
-
-      conn.on("data", (chunk) => {
-        const content = chunk.toString();
-        for (const line of content.split("\r\n")) {
-          if (line.length !== 0 && !line.startsWith("Content-Length: ")) {
-            queue.push(JSON.parse(line));
+          if (data.toString().includes("Ready")) {
+            resolve();
           }
-        }
+        })
+      );
+
+      await new Promise((resolve) => {
+        const conn = net.connect({ port }, () => {
+          resolve();
+        });
+
+        conn.on("error", (err) => {
+          console.error(err);
+        });
+
+        lspClient = new LSPClient(conn, conn);
       });
-    });
-    conn.on("error", (err) => {
-      console.error(err);
-    });
+    }
+
+    if (protocol === "stdio") {
+      lspClient = new LSPClient(
+        languageServerProcess.stdin,
+        languageServerProcess.stdout
+      );
+    }
   });
 
   afterAll(() => {
-    conn.end();
+    lspClient.destroy();
     languageServerProcess.kill();
   });
 
-  async function send(json) {
-    const content = JSON.stringify(json);
-    await new Promise((resolve) => {
-      conn.write(
-        "Content-Length: " + Buffer.from(content).length + "\r\n\r\n" + content,
-        resolve
-      );
-    });
-  }
-
   test("for " + process.env["VERSION"], async () => {
-    await send({
+    await lspClient.send({
       jsonrpc: "2.0",
       id: 0,
       method: "initialize",
@@ -183,8 +244,8 @@ describe("e2e", () => {
         processId: 27059,
         clientInfo: { name: "Visual Studio Code", version: "1.65.1" },
         locale: "ja",
-        rootPath: testProjectRoot,
-        rootUri: pathToFileURL(testProjectRoot),
+        rootPath: outputNormalizer.testProjectRoot,
+        rootUri: outputNormalizer.getURL(),
         capabilities: {
           workspace: {
             applyEdit: true,
@@ -323,9 +384,18 @@ describe("e2e", () => {
               prepareSupportDefaultBehavior: 1,
               honorsChangeAnnotations: true,
             },
-            documentLink: { dynamicRegistration: true, tooltipSupport: true },
-            typeDefinition: { dynamicRegistration: true, linkSupport: true },
-            implementation: { dynamicRegistration: true, linkSupport: true },
+            documentLink: {
+              dynamicRegistration: true,
+              tooltipSupport: true,
+            },
+            typeDefinition: {
+              dynamicRegistration: true,
+              linkSupport: true,
+            },
+            implementation: {
+              dynamicRegistration: true,
+              linkSupport: true,
+            },
             colorProvider: { dynamicRegistration: true },
             foldingRange: {
               dynamicRegistration: true,
@@ -395,22 +465,28 @@ describe("e2e", () => {
         trace: "off",
         workspaceFolders: [
           {
-            uri: pathToFileURL(testProjectRoot),
+            uri: outputNormalizer.getURL(),
             name: "PdeTest",
           },
         ],
       },
     });
 
-    expect(convertResult(await queue.pop())).toMatchSnapshot();
+    expect(
+      outputNormalizer.convertResult(await lspClient.receive())
+    ).toMatchSnapshot();
 
-    await send({ jsonrpc: "2.0", method: "initialized", params: {} });
-    await send({
+    await lspClient.send({
+      jsonrpc: "2.0",
+      method: "initialized",
+      params: {},
+    });
+    await lspClient.send({
       jsonrpc: "2.0",
       method: "textDocument/didOpen",
       params: {
         textDocument: {
-          uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
+          uri: outputNormalizer.getURL("PdeTest.pde"),
           languageId: "processing",
           version: 1,
           text: "class Hoge {\n  void f(int x) {}\n}\n\nvoid main() {\nHoge hoge = new Hoge();\nhoge\n}\n",
@@ -418,14 +494,16 @@ describe("e2e", () => {
       },
     });
 
-    expect(convertResult(await queue.pop())).toMatchSnapshot();
+    expect(
+      outputNormalizer.convertResult(await lspClient.receive())
+    ).toMatchSnapshot();
 
-    await send({
+    await lspClient.send({
       jsonrpc: "2.0",
       method: "textDocument/didChange",
       params: {
         textDocument: {
-          uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
+          uri: outputNormalizer.getURL("PdeTest.pde"),
           version: 2,
         },
         contentChanges: [
@@ -436,24 +514,28 @@ describe("e2e", () => {
       },
     });
 
-    expect(convertResult(await queue.pop())).toMatchSnapshot();
+    expect(
+      outputNormalizer.convertResult(await lspClient.receive())
+    ).toMatchSnapshot();
 
-    await send({
+    await lspClient.send({
       jsonrpc: "2.0",
       id: 1,
       method: "textDocument/completion",
       params: {
         textDocument: {
-          uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
+          uri: outputNormalizer.getURL("PdeTest.pde"),
         },
         position: { line: 6, character: 5 },
         context: { triggerKind: 2, triggerCharacter: "." },
       },
     });
 
-    expect(convertResult(await queue.pop())).toMatchSnapshot();
+    expect(
+      outputNormalizer.convertResult(await lspClient.receive())
+    ).toMatchSnapshot();
 
-    await send({
+    await lspClient.send({
       jsonrpc: "2.0",
       id: 2,
       method: "completionItem/resolve",
@@ -466,14 +548,16 @@ describe("e2e", () => {
       },
     });
 
-    expect(convertResult(await queue.pop())).toMatchSnapshot();
+    expect(
+      outputNormalizer.convertResult(await lspClient.receive())
+    ).toMatchSnapshot();
 
-    await send({
+    await lspClient.send({
       jsonrpc: "2.0",
       method: "textDocument/didChange",
       params: {
         textDocument: {
-          uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
+          uri: outputNormalizer.getURL("PdeTest.pde"),
           version: 3,
         },
         contentChanges: [
@@ -484,14 +568,16 @@ describe("e2e", () => {
       },
     });
 
-    expect(convertResult(await queue.pop())).toMatchSnapshot();
+    expect(
+      outputNormalizer.convertResult(await lspClient.receive())
+    ).toMatchSnapshot();
 
-    await send({
+    await lspClient.send({
       jsonrpc: "2.0",
       method: "textDocument/didChange",
       params: {
         textDocument: {
-          uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
+          uri: outputNormalizer.getURL("PdeTest.pde"),
           version: 4,
         },
         contentChanges: [
@@ -502,28 +588,36 @@ describe("e2e", () => {
       },
     });
 
-    expect(convertResult(await queue.pop())).toMatchSnapshot();
+    expect(
+      outputNormalizer.convertResult(await lspClient.receive())
+    ).toMatchSnapshot();
 
-    await send({
+    await lspClient.send({
       jsonrpc: "2.0",
       id: 3,
       method: "textDocument/formatting",
       params: {
         textDocument: {
-          uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
+          uri: outputNormalizer.getURL("PdeTest.pde"),
         },
-        options: { tabSize: 2, insertSpaces: true, insertFinalNewline: true },
+        options: {
+          tabSize: 2,
+          insertSpaces: true,
+          insertFinalNewline: true,
+        },
       },
     });
 
-    expect(convertResult(await queue.pop())).toMatchSnapshot();
+    expect(
+      outputNormalizer.convertResult(await lspClient.receive())
+    ).toMatchSnapshot();
 
-    await send({
+    await lspClient.send({
       jsonrpc: "2.0",
       method: "textDocument/didChange",
       params: {
         textDocument: {
-          uri: pathToFileURL(path.join(testProjectRoot, "PdeTest.pde")),
+          uri: outputNormalizer.getURL("PdeTest.pde"),
           version: 5,
         },
         contentChanges: [
@@ -534,6 +628,8 @@ describe("e2e", () => {
       },
     });
 
-    expect(convertResult(await queue.pop())).toMatchSnapshot();
+    expect(
+      outputNormalizer.convertResult(await lspClient.receive())
+    ).toMatchSnapshot();
   });
 });
