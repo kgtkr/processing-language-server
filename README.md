@@ -1,3 +1,7 @@
+This project has been merged into processing.
+https://github.com/processing/processing4/pull/564
+
+
 ## Processing Language Server
 This is currently under development. 
 
